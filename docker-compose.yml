@@ -1,0 +1,17 @@
+services:
+  hermes:
+    image: nousresearch/hermes-agent:latest
+    container_name: hermes-lee
+    restart: unless-stopped
+    environment:
+      HERMES_UID: "1001"
+      HERMES_GID: "1001"
+      PATH: /opt/hermes/.venv/bin:/opt/data/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      VIRTUAL_ENV: /opt/hermes/.venv
+    volumes:
+      - /home/lee/.hermes:/opt/data
+      - /home/lee/wiki:/opt/data/wiki
+      - /home/lee/projects:/opt/data/projects
+    command: ["gateway", "run"]
+    stdin_open: true
+    tty: true
