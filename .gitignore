@@ -1,2 +1,9 @@
 # Claude Code local-only settings (machine-specific permission allowlists)
 .claude/settings.local.json
+
+# Claude Code skill definitions (local tooling, not project content)
+.claude/
+
+# BMad framework install and generated output (local tooling, not project content)
+_bmad/
+_bmad-output/
