@@ -35,6 +35,44 @@ from the host `.env` (see Phase B and `.env.example`).
 
 ---
 
+## Phase 0 — First-time container setup **[OPERATOR]** (run once per host)
+
+Skip this phase on repeat deploys — only run it the **first time** you stand up
+`hermes-lee` on a host (or after a Hermes image upgrade that resets config).
+
+Hermes generates `~/.hermes/config.yaml` with `terminal.home_mode: auto` by
+default. On this image, `auto` forces terminal subprocesses into a fake
+`$HERMES_HOME/home` = `/opt/data/home`, drifts them away from the real
+credential dotdirs at `/opt/data/`, and creates a parallel orphan install set.
+Flip it once with the supported entry point (see
+[`docs/HERMES_HOME_AND_OS_HOME.md`](./HERMES_HOME_AND_OS_HOME.md) for the full
+rationale and why an env-var override won't work):
+
+```bash
+docker exec -u hermes hermes-lee hermes config set terminal.home_mode real
+```
+
+The change lands in `~/.hermes/config.yaml` (host `/home/lee/.hermes/config.yaml`),
+persists across container recreations, and survives `hermes config migrate` on
+schema bumps. Verify after running it:
+
+```bash
+docker exec -u hermes hermes-lee bash -lc 'grep -nE "home_mode" /opt/data/config.yaml'
+#   expect:   home_mode: real
+```
+
+✅ **Check:** `home_mode: real` in the output. Then restart the gateway so the
+new value loads:
+```bash
+docker compose restart hermes
+```
+
+🛑 **If the value doesn't stick:** you ran `hermes config set` against the wrong
+container, or you skipped `hermes setup` first (config.yaml doesn't exist yet —
+the `set` will create it, but `hermes setup` is the canonical first step).
+
+---
+
 ## Phase A — Preflight (free) **[AGENT]**
 
 Run these and capture outputs. All commands assume you are the `hermes` user
@@ -295,6 +333,7 @@ comes from the image (Decision D2 risk; `ensure_claude()` is the opt-in self-hea
 | Symptom | Likely cause | Action |
 |---|---|---|
 | `claude` auth error / `loggedIn: false` | D3 blocker — no API key | **[OPERATOR]** set `ANTHROPIC_API_KEY`, `docker compose up -d` (recreate, not restart) |
+| agent subprocess sees `$HOME=/opt/data/home` | `terminal.home_mode` reverted to `auto` (image default) | run **Phase 0**'s `hermes config set terminal.home_mode real`, then `docker compose restart hermes` (see [`HERMES_HOME_AND_OS_HOME.md`](./HERMES_HOME_AND_OS_HOME.md)) |
 | `golden_session: command not found` | shim not on PATH / wrong `GS_LIB` | use `GS_LIB=$HOME/.local/lib python3 -m golden_session …`; fix PATH in `~/.bashrc` |
 | `SessionNotFoundError` on continue | wrong cwd — F9 caught a silent fresh session | run from the **registered** workspace; never pass an ad-hoc cwd |
 | `DoublePrimeError` / "name already exists" | GOLD already primed (F1/F7) | reuse it; never re-prime a name |
