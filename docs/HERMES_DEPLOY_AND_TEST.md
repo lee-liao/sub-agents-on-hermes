@@ -24,7 +24,11 @@
 Environment facts (from `docker-compose.yml`): container `hermes-lee`, runtime
 user `hermes`, bind mount host `/home/lee/.hermes` ↔ container `/opt/data`
 (persists across image updates), projects `/home/lee/projects` ↔
-`/opt/data/projects`, and `PATH` already includes `/opt/data/.local/bin`.
+`/opt/data/projects`, this repo `/home/lee/hermes-docker-lee` ↔
+`/opt/data/hermes-docker-lee` (read-only — you can read the runbook and package,
+cannot write back), and `PATH` already includes `/opt/data/.local/bin`. Auth
+vars `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, and `API_TIMEOUT_MS` are
+substituted from the host `.env` (see Phase B and `.env.example`).
 
 ---
 
@@ -64,17 +68,25 @@ the image lacks the runtime.
 
 ## Phase B — Auth (the known blocker, D3) **[OPERATOR]**
 
-Headless automation cannot complete an interactive login. Use a long-lived API
-key, **not** OAuth device flow.
+Headless automation cannot complete an interactive login. Use either a long-lived
+API key **or** an auth-token + custom endpoint pair — **not** OAuth device flow.
+This deployment uses the second form (see `.env.example` for both templates).
 
-**[OPERATOR / host]** add the key to `docker-compose.yml` and recreate (a restart
-is *not* enough — env only takes effect on recreate):
+**[OPERATOR / host]** populate `.env` from `.env.example`, ensure
+`docker-compose.yml` references the matching vars, and recreate (a restart is
+*not* enough — env only takes effect on recreate):
 
 ```yaml
 services:
   hermes:
     environment:
-      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"   # from host env / .env — NEVER commit
+      # Form 1 — direct Anthropic API key:
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY}"
+      # Form 2 — custom endpoint / relay (this deployment's choice):
+      ANTHROPIC_AUTH_TOKEN: "${ANTHROPIC_AUTH_TOKEN}"
+      ANTHROPIC_BASE_URL:   "${ANTHROPIC_BASE_URL}"
+      API_TIMEOUT_MS:       "${API_TIMEOUT_MS}"
+      # — NEVER commit `.env`; `.env.example` is the template.
 ```
 ```bash
 docker compose up -d
@@ -88,8 +100,8 @@ claude -p "reply OK" --max-turns 1
 
 ✅ **Check:** the call returns without an auth error.
 🛑 **If it fails with `loggedIn: false` / auth error:** stop and tell the operator
-"auth blocker D3 — set `ANTHROPIC_API_KEY` and `docker compose up -d`." No
-delegation runs until this passes.
+"auth blocker D3 — set the auth vars in `.env` (see `.env.example`) and
+`docker compose up -d`." No delegation runs until this passes.
 
 ---
 
@@ -98,8 +110,26 @@ delegation runs until this passes.
 The wrapper must live on `/opt/data` so it survives image updates alongside
 `claude`. It is pure stdlib — **no pip required**.
 
-**[OPERATOR / host]** copy the package + shim onto the mount (paths use the `$HOME`
-confirmed in A2; this example uses `/opt/data/home`):
+This repo is bind-mounted read-only at `/opt/data/hermes-docker-lee`, so you
+can install directly from inside the container without `docker cp`.
+
+**[AGENT]** install the package + shim from the mounted repo (paths use the
+`$HOME` confirmed in A2; this example uses `/opt/data/home`):
+
+```bash
+install -d /opt/data/home/.local/lib /opt/data/home/.local/bin
+cp -r /opt/data/hermes-docker-lee/golden_session /opt/data/home/.local/lib/
+cp /opt/data/hermes-docker-lee/bin/golden_session /opt/data/home/.local/bin/
+chmod 755 /opt/data/home/.local/bin/golden_session
+
+# Optional: also copy the test suite so you can self-test in-container (Phase F-1):
+cp -r /opt/data/hermes-docker-lee/tests /opt/data/home/.local/lib/tests
+cp /opt/data/hermes-docker-lee/pyproject.toml /opt/data/home/.local/lib/pyproject.toml
+```
+
+**[OPERATOR / host]** alternative — if the repo is NOT mounted into the container,
+copy from a host checkout instead (paths use the `$HOME` confirmed in A2; this
+example uses `/opt/data/home`):
 
 ```bash
 # from a checkout of this repo on the host:

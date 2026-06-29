@@ -19,3 +19,8 @@ dist/
 # golden_session runtime state (never commit secrets / transcripts / registry)
 .gs-locks/
 registry.json
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
