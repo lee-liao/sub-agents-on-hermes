@@ -26,9 +26,12 @@ user `hermes`, bind mount host `/home/lee/.hermes` ↔ container `/opt/data`
 (persists across image updates), projects `/home/lee/projects` ↔
 `/opt/data/projects`, this repo `/home/lee/hermes-docker-lee` ↔
 `/opt/data/hermes-docker-lee` (read-only — you can read the runbook and package,
-cannot write back), and `PATH` already includes `/opt/data/.local/bin`. Auth
-vars `ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, and `API_TIMEOUT_MS` are
-substituted from the host `.env` (see Phase B and `.env.example`).
+cannot write back), and `PATH` already includes `/opt/data/.local/bin`. `$HOME`
+is `/opt/data` for every process (matches `/etc/passwd`; `terminal.home_mode: real`
+in `~/.hermes/config.yaml` — set so the gateway's terminal subprocesses don't drift
+to a fake `$HERMES_HOME/home` and lose the credential dotdirs). Auth vars
+`ANTHROPIC_AUTH_TOKEN`, `ANTHROPIC_BASE_URL`, and `API_TIMEOUT_MS` are substituted
+from the host `.env` (see Phase B and `.env.example`).
 
 ---
 
@@ -44,7 +47,7 @@ node --version            # expect v20+/v22
 claude --version          # expect 2.1.x  (doc 05: v2.1.195 was installed)
 
 # A2. Confirm $HOME — doc 05 and TROUBLESHOOTING.md disagree; the truth wins.
-echo "HOME=$HOME"         # likely /opt/data/home OR /opt/data
+echo "HOME=$HOME"         # expect /opt/data (matches /etc/passwd; terminal.home_mode: real)
 echo "PATH=$PATH"
 
 # A3. Where claude stores sessions (must be under the real $HOME, on the mount)
@@ -114,36 +117,36 @@ This repo is bind-mounted read-only at `/opt/data/hermes-docker-lee`, so you
 can install directly from inside the container without `docker cp`.
 
 **[AGENT]** install the package + shim from the mounted repo (paths use the
-`$HOME` confirmed in A2; this example uses `/opt/data/home`):
+`$HOME` confirmed in A2; this example uses `/opt/data`):
 
 ```bash
-install -d /opt/data/home/.local/lib /opt/data/home/.local/bin
-cp -r /opt/data/hermes-docker-lee/golden_session /opt/data/home/.local/lib/
-cp /opt/data/hermes-docker-lee/bin/golden_session /opt/data/home/.local/bin/
-chmod 755 /opt/data/home/.local/bin/golden_session
+install -d /opt/data/.local/lib /opt/data/.local/bin
+cp -r /opt/data/hermes-docker-lee/golden_session /opt/data/.local/lib/
+cp /opt/data/hermes-docker-lee/bin/golden_session /opt/data/.local/bin/
+chmod 755 /opt/data/.local/bin/golden_session
 
 # Optional: also copy the test suite so you can self-test in-container (Phase F-1):
-cp -r /opt/data/hermes-docker-lee/tests /opt/data/home/.local/lib/tests
-cp /opt/data/hermes-docker-lee/pyproject.toml /opt/data/home/.local/lib/pyproject.toml
+cp -r /opt/data/hermes-docker-lee/tests /opt/data/.local/lib/tests
+cp /opt/data/hermes-docker-lee/pyproject.toml /opt/data/.local/lib/pyproject.toml
 ```
 
 **[OPERATOR / host]** alternative — if the repo is NOT mounted into the container,
 copy from a host checkout instead (paths use the `$HOME` confirmed in A2; this
-example uses `/opt/data/home`):
+example uses `/opt/data`):
 
 ```bash
 # from a checkout of this repo on the host:
-docker cp golden_session  hermes-lee:/opt/data/home/.local/lib/golden_session
-docker cp bin/golden_session hermes-lee:/opt/data/home/.local/bin/golden_session
-docker exec -u hermes hermes-lee bash -lc 'chmod 755 /opt/data/home/.local/bin/golden_session'
+docker cp golden_session  hermes-lee:/opt/data/.local/lib/golden_session
+docker cp bin/golden_session hermes-lee:/opt/data/.local/bin/golden_session
+docker exec -u hermes hermes-lee bash -lc 'chmod 755 /opt/data/.local/bin/golden_session'
 
 # Optional: also copy the test suite so the agent can self-test in-container (Phase F-1):
-docker cp tests       hermes-lee:/opt/data/home/.local/lib/tests
-docker cp pyproject.toml hermes-lee:/opt/data/home/.local/lib/pyproject.toml
+docker cp tests       hermes-lee:/opt/data/.local/lib/tests
+docker cp pyproject.toml hermes-lee:/opt/data/.local/lib/pyproject.toml
 ```
 
 Point the shim at the lib dir and ensure its `bin` is on `PATH`. The shim reads
-`$GS_LIB` (default `/opt/data/home/.local/lib`); set it if your `$HOME`/layout
+`$GS_LIB` (default `/opt/data/.local/lib`); set it if your `$HOME`/layout
 differs. `/opt/data/.local/bin` is already on `PATH` per compose — if you put the
 shim there instead, no `.bashrc` edit is needed.
 
@@ -223,7 +226,7 @@ The shipped suite proves the F1–F11 guardrails against a faithful fake of
 `claude -p` — run it in-place to validate the deployed code without spending:
 
 ```bash
-cd /opt/data/home/.local/lib            # the dir CONTAINING the golden_session package + tests
+cd /opt/data/.local/lib            # the dir CONTAINING the golden_session package + tests
 python3 -m pytest -q                    # if tests/ was copied alongside the package
 # (if tests aren't deployed, run this on the host checkout instead)
 ```
