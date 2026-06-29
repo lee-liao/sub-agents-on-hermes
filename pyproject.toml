@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "golden-session"
+version = "0.1.0"
+description = "Code-in-the-loop orchestration of Claude Code GOLD sessions (Hermes Phase 1 MVP)."
+readme = "golden_session/README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+# Zero third-party runtime dependencies — stdlib only, so it deploys onto the
+# Hermes bind mount with no pip step (doc 05 Decision D1).
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest>=7"]
+
+[project.scripts]
+golden_session = "golden_session.cli:main"
+
+[tool.setuptools]
+packages = ["golden_session"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"

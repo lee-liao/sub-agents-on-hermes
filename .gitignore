@@ -7,3 +7,15 @@
 # BMad framework install and generated output (local tooling, not project content)
 _bmad/
 _bmad-output/
+
+# Python build/test artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+build/
+dist/
+
+# golden_session runtime state (never commit secrets / transcripts / registry)
+.gs-locks/
+registry.json

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# golden_session PATH shim for the Hermes bind mount (doc 05 Step 2).
+#
+# Install on the persistent volume so the agent's shell finds it and it survives
+# image updates, e.g.:
+#   cp -r golden_session /opt/data/home/.local/lib/
+#   install -m755 bin/golden_session /opt/data/home/.local/bin/golden_session
+#   # ensure ~/.local/bin is on PATH via ~/.bashrc (same as the claude install)
+#
+# GS_LIB points at the directory CONTAINING the `golden_session` package.
+set -euo pipefail
+GS_LIB="${GS_LIB:-/opt/data/home/.local/lib}"
+PYTHONPATH="${GS_LIB}:${PYTHONPATH:-}" exec python3 -m golden_session "$@"

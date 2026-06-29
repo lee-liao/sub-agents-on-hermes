@@ -1,0 +1,18 @@
+{
+  "billing-api": {
+    "golden_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "cwd": "/opt/data/projects/billing-api",
+    "description": "Billing service — Python/FastAPI",
+    "defaults": {
+      "allowed_tools": ["Read", "Edit", "Bash"],
+      "max_turns": 20,
+      "max_budget_usd": 0.50,
+      "max_continues": 3,
+      "model": "sonnet"
+    },
+    "ceilings": {
+      "max_turns": 40,
+      "max_budget_usd": 2.00
+    }
+  }
+}
