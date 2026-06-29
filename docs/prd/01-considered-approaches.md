@@ -58,6 +58,74 @@ Ratings reflect fit for **this use case** (programmatic task management with the
 | **Only if specific strengths matter** | claude-agent-acp | Choose only if native permission-request events and editor-grade bidirectional streaming outweigh the GOLD-engineering tax. |
 | **Do not use for this** | tmux + send-keys | Loses tmux's benefits, adds costs, fragile across versions. |
 
+> Confirmed by the official Hermes claude-code doc: print mode (`claude -p`) is Hermes' own
+> **preferred** mode, with JSON output (`session_id`, `total_cost_usd`, `stop_reason`) for
+> integration. It documents `--resume`/`--fork-session` but **no golden/primed-session
+> pattern** — that reuse layer is supplied by this project's wrapper. See
+> [`05-integration-and-deployment.md`](./05-integration-and-deployment.md).
+
+## What the Hermes `/claude-code` skill actually provides (and why we still build `golden_session`)
+
+This section records what Hermes ships out of the box for Claude Code, verified against the
+official doc and a live run on this deployment. It matters because our `golden_session`
+solution (doc 02) is justified precisely by the gap between what `/claude-code` provides and
+what the problem statement above requires.
+
+### What `/claude-code` is
+
+- It is a **Hermes agent skill = a markdown guide loaded into the agent's context**, not a
+  tool. **Nothing in it executes on its own.** *(Confirmed live: invoking `/claude-code` with
+  no task made the agent run only the guide's "Prerequisites: install + auth" step, then stop
+  at the first blocker.)*
+- Invocation is **agent-in-the-loop**: the agent reads the guide, then issues the actual work
+  itself via Hermes' `terminal(command="claude -p …", workdir=…, timeout=…)`. `/claude-code`
+  is **not** a command that takes a shell command as an argument — the slash command only loads
+  the guide; the `claude` call is a separate `terminal()` action the agent emits.
+- Two ways a task gets triggered: **interactive** (a human runs `/claude-code` in chat, the
+  agent delegates) and **programmatic** (Hermes code calls the CLI directly, no slash command).
+
+### The two execution modes it documents
+
+| Mode | Execution | Interactivity | Result delivery |
+|---|---|---|---|
+| **Print mode `claude -p`** (PREFERRED) | **blocking subprocess; runs the whole task autonomously, then exits** | none — internally agentic but invisible until exit ("blind until exit") | one **final JSON** object (`session_id`, `total_cost_usd`, `stop_reason`, `result`) |
+| **tmux PTY** (only for multi-turn / human-decision work) | `claude` kept alive as a **background process** | the **agent** drives it via `send-keys` / `capture-pane` across turns | scraped from the pane |
+
+Key consequence for both: the human's chat is always **you ↔ Hermes agent**; `claude` is never
+wired directly into the chat. In tmux mode a human *can* see prompts and give feedback, but only
+**relayed through the agent** (the agent polls `capture-pane`, spots a visual cue like the `❯`
+prompt, surfaces it, and sends your answer back via `send-keys`) — the brittle "decision
+detection" the matrix above already penalizes. (An operator with container shell access can
+`tmux attach` to drive `claude` directly, but that is out-of-band, not the chat flow.)
+
+### The session model it assumes
+
+A Claude Code **session is persistent state on disk** (a `.jsonl` transcript under
+`~/.claude/projects/<encoded-cwd>/`), **not a live process.** `/claude-code` itself starts no
+session — it only loads the guide. "Continuable" means a *new* short-lived `--resume` subprocess
+re-reads that file; no process is held open between calls.
+
+### What it does NOT provide — the gap that justifies `golden_session`
+
+The official doc is explicit that Claude Code sessions are **task-specific with no golden/primed
+reuse**, and that multi-turn continuation *"requires explicit Hermes orchestration."* So
+`/claude-code` gives us the substrate and the knowledge, but **not** the orchestration contract
+our problem statement demands:
+
+| Requirement (from Problem statement) | `/claude-code` alone | Supplied by `golden_session` |
+|---|---|---|
+| Stable context reused across many tasks, never polluted (#5) | **No golden pattern**; agent would have to invent and perfectly maintain GOLD discipline every task | prime-once GOLD + fork-per-task, enforced |
+| Continuable on failure without losing progress (#6) | possible via `--resume`, but left to "explicit Hermes orchestration" | `continue_task` (resume/append), tracked |
+| Bounded cost, no silent failure, single-writer safety | flags exist, but a guide only *suggests* — an LLM improvising `terminal()` calls can skip a cap, drop `cwd`, or double-write a session | F1–F10 enforced **in code**, deterministically |
+| Decision points (#6) | brittle visual-cue relay (tmux) or none (print mode) | headless + structured sentinel (thread #3, Phase 2) |
+
+**Conclusion.** `/claude-code` confirms and blesses our substrate choice (headless `claude -p`
++ JSON), but its orchestration is *agent-improvised and invariant-free by design*. The
+problem statement requires *deterministic, code-enforced* invariants over a *reused* GOLD
+session. `golden_session` is exactly that missing layer — it is not a replacement for
+`/claude-code` but the engine the trigger should drive (see
+[`05-integration-and-deployment.md`](./05-integration-and-deployment.md) Decisions A1/A2).
+
 ## Where ACP could still win
 
 ACP has one genuinely attractive property for this use case: **decision detection is native**. Its typed permission-request events let a client see "the agent is asking permission for X" or "the agent needs a decision on Y" without parsing prompt conventions out of text. If tasks frequently hit permission boundaries or branching decisions, that could justify the GOLD gymnastics ACP requires.
