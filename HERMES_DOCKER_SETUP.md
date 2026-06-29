@@ -79,9 +79,9 @@ docker exec -it -u hermes hermes-lee /bin/bash
 Run Hermes CLI:
 
 ```bash
-docker exec -it -u hermes hermes-lee hermes chat
+docker exec -u hermes -it hermes-lee hermes
 docker exec -u hermes hermes-lee hermes status
-docker exec -it -u hermes hermes-lee hermes setup
+docker exec -u hermes -it hermes-lee hermes setup
 docker exec -u hermes hermes-lee hermes doctor
 docker exec -u hermes hermes-lee hermes doctor --fix
 ```
