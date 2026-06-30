@@ -24,3 +24,6 @@ registry.json
 .env
 .env.*
 !.env.example
+
+# intermediate files
+output/
