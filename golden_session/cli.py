@@ -104,8 +104,16 @@ def _cmd_prime(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner)
 def _cmd_run(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner) -> int:
     resolved = registry.resolve(ns.name, _overrides(ns))
     gs = _session(resolved, runner)
-    result = gs.run_task(resolved_task(ns), model=resolved.model)
-    _emit({"ok": not result.is_error, "command": "run", "name": ns.name, **result.to_dict()})
+    result = gs.run_task(resolved_task(ns), model=resolved.model, run_dir=ns.run_dir)
+    _emit(
+        {
+            "ok": not result.is_error,
+            "command": "run",
+            "name": ns.name,
+            "run_dir": ns.run_dir,
+            **result.to_dict(),
+        }
+    )
     return 0 if not result.is_error else 1
 
 
@@ -113,7 +121,7 @@ def _cmd_continue(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunn
     resolved = registry.resolve(ns.name, _overrides(ns))
     gs = _session(resolved, runner)
     result = gs.continue_task(
-        ns.session_id, resolved_task(ns), fork=ns.fork, model=resolved.model
+        ns.session_id, resolved_task(ns), fork=ns.fork, model=resolved.model, run_dir=ns.run_dir
     )
     _emit(
         {
@@ -121,6 +129,7 @@ def _cmd_continue(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunn
             "command": "continue",
             "name": ns.name,
             "forked": ns.fork,
+            "run_dir": ns.run_dir,
             **result.to_dict(),
         }
     )
@@ -278,6 +287,12 @@ def _add_override_args(sp: argparse.ArgumentParser) -> None:
     sp.add_argument("--turns", type=int, default=None, help="max_turns override (clamped).")
     sp.add_argument("--tools", nargs="*", default=None, help="allowed_tools override.")
     sp.add_argument("--model", default=None, help="model override.")
+    sp.add_argument(
+        "--run-dir",
+        default=None,
+        help="Per-task directory (F12). Created and exported as GS_RUN_DIR so a "
+        "cwd-level confine-writes hook can enforce output isolation.",
+    )
 
 
 if __name__ == "__main__":  # python -m golden_session.cli

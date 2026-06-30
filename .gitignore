@@ -4,6 +4,11 @@
 # Claude Code skill definitions (local tooling, not project content)
 .claude/
 
+# ...but DO track the example workspace template's .claude/ — it is shipped
+# project content (the output-isolation hook), not machine-local tooling.
+!examples/workspace-template/.claude/
+!examples/workspace-template/.claude/**
+
 # BMad framework install and generated output (local tooling, not project content)
 _bmad/
 _bmad-output/

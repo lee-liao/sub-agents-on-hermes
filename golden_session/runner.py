@@ -13,7 +13,7 @@ import os
 import shutil
 import subprocess
 from dataclasses import dataclass
-from typing import Callable, Sequence
+from typing import Callable, Mapping, Optional, Sequence
 
 from .errors import ClaudeUnavailableError
 
@@ -27,16 +27,24 @@ class RunOutput:
     stderr: str
 
 
-# A runner takes the fully-built argv and the workspace cwd and returns RunOutput.
-# cwd is passed explicitly (F6) — the runner MUST NOT rely on the process cwd.
-ClaudeRunner = Callable[[Sequence[str], str], RunOutput]
+# A runner takes the fully-built argv, the workspace cwd, and an optional env
+# overlay, returning RunOutput. cwd is passed explicitly (F6) — the runner MUST
+# NOT rely on the process cwd. ``env`` is an *overlay* on os.environ (None ==
+# plain inherit), used to inject per-task vars like GS_RUN_DIR (F12) without
+# mutating the shared process environment — safe for parallel forks.
+ClaudeRunner = Callable[..., RunOutput]
 
 
-def default_runner(args: Sequence[str], cwd: str) -> RunOutput:
+def default_runner(
+    args: Sequence[str], cwd: str, env: Optional[Mapping[str, str]] = None
+) -> RunOutput:
     """Spawn the real `claude` CLI as a blocking subprocess.
 
     - ``cwd`` is passed explicitly so session lookup is scoped to the right
       workspace (F6 / doc 02 gotcha 2). Never inherit the process cwd.
+    - ``env`` overlays os.environ for this call only (``None`` == inherit
+      unchanged). Building a fresh dict per call keeps concurrent forks from
+      racing on a shared, mutated environment.
     - ``stdin=DEVNULL`` silences the harmless "no stdin data received in 3s"
       warning (doc 02 gotcha 8).
     """
@@ -44,6 +52,7 @@ def default_runner(args: Sequence[str], cwd: str) -> RunOutput:
         proc = subprocess.run(
             list(args),
             cwd=cwd,
+            env=({**os.environ, **env} if env else None),
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,

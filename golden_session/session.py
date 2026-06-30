@@ -142,11 +142,17 @@ class GoldenSession:
         max_turns: Optional[int] = None,
         max_budget_usd: Optional[float] = None,
         model: Optional[str] = None,
+        run_dir: Optional[str] = None,
     ) -> TaskResult:
         """Fork a new task from GOLD (F2). GOLD stays pristine; a NEW sid returns.
 
         No single-writer lock is taken: each fork writes a *distinct* output file
         (F8 — "concurrent forks off GOLD remain safe"), so they run fully parallel.
+
+        ``run_dir`` (F12) scopes the task's filesystem writes: the directory is
+        created and exported as ``GS_RUN_DIR`` so a cwd-level PreToolUse hook can
+        confine every write to it — turning output isolation from convention into
+        an enforced boundary (see docs/OUTPUT_ISOLATION.md).
         """
         args = self._build_args(
             prompt,
@@ -157,7 +163,7 @@ class GoldenSession:
             max_budget_usd=max_budget_usd,
             model=model,
         )
-        out = self._run(args, self.workspace)
+        out = self._run(args, self.workspace, env=self._run_env(run_dir))
         result = self._parse(out)
         # A fork must yield a fresh id distinct from GOLD; otherwise the resume
         # silently failed to branch.
@@ -180,6 +186,7 @@ class GoldenSession:
         max_turns: Optional[int] = None,
         max_budget_usd: Optional[float] = None,
         model: Optional[str] = None,
+        run_dir: Optional[str] = None,
     ) -> TaskResult:
         """Append a fix to an existing task (recover, F4) or branch a new fork.
 
@@ -213,9 +220,11 @@ class GoldenSession:
             model=model,
         )
 
+        env = self._run_env(run_dir)
+
         if fork:
             # Branch: writes a new distinct file -> no single-writer lock needed.
-            out = self._run(args, self.workspace)
+            out = self._run(args, self.workspace, env=env)
             result = self._parse(out)
             if not result.session_id or result.session_id == session_id:
                 raise SessionNotFoundError(
@@ -228,7 +237,7 @@ class GoldenSession:
 
         # Append (recover): single-writer lock on the sid (F8).
         with session_lock(session_id, self.lock_dir):
-            out = self._run(args, self.workspace)
+            out = self._run(args, self.workspace, env=env)
             result = self._parse(out)
             # F9 — loud failure on session-not-found. A wrong-cwd resume silently
             # starts a FRESH session and reports success; assert id-equality.
@@ -271,6 +280,19 @@ class GoldenSession:
         return deleted
 
     # --- internals -------------------------------------------------------
+
+    def _run_env(self, run_dir: Optional[str]) -> Optional[dict[str, str]]:
+        """Build the per-call env overlay for an optional task run-dir (F12).
+
+        Creates the directory (so the agent and the confine-writes hook agree it
+        exists) and exports its absolute path as ``GS_RUN_DIR``. Returns ``None``
+        when no run_dir is requested, leaving the subprocess env untouched.
+        """
+        if not run_dir:
+            return None
+        abs_dir = os.path.abspath(run_dir)
+        os.makedirs(abs_dir, exist_ok=True)
+        return {"GS_RUN_DIR": abs_dir}
 
     def _build_args(
         self,

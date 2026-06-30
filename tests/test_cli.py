@@ -78,6 +78,27 @@ def test_run_budget_override_is_clamped(fake, capsys, workspace, registry_path):
     assert last[last.index("--max-budget-usd") + 1] == "2.0"   # clamped to ceiling
 
 
+def test_run_with_run_dir_creates_dir_and_exports_env(fake, capsys, workspace, registry_path, tmp_path):
+    prime(fake, capsys, workspace)
+    run_dir = tmp_path / "runs" / "job-0042"
+    code, out, _ = run_cli(
+        ["run", "--name", "billing-api", "--task", "do work", "--run-dir", str(run_dir)],
+        fake,
+        capsys,
+    )
+    assert code == 0
+    payload = json.loads(out)
+    assert payload["run_dir"] == str(run_dir)
+    assert run_dir.is_dir()                                   # F12: dir created
+    assert fake.envs[-1]["GS_RUN_DIR"] == str(run_dir)        # F12: exported to subprocess
+
+
+def test_run_without_run_dir_leaves_env_untouched(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    run_cli(["run", "--name", "billing-api", "--task", "x"], fake, capsys)
+    assert fake.envs[-1] is None                              # no overlay when run_dir absent
+
+
 def test_continue_then_list_and_cleanup(fake, capsys, workspace, registry_path):
     prime(fake, capsys, workspace)
     _, out, _ = run_cli(["run", "--name", "billing-api", "--task", "attempt"], fake, capsys)

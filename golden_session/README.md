@@ -39,6 +39,7 @@ bind mount with no pip step (Decision D1).
 | F9 | Loud failure on session-not-found | `continue_task` id-equality assert | `test_continue_from_wrong_cwd_raises_loudly` |
 | F10 | Retry ceiling | `continue_task` ledger | `test_retry_loop_stops_at_ceiling` |
 | F11 | Name-based resolution + clamp | `registry.py` | `test_registry.py`, `test_gateway.py` |
+| F12 | Per-task output isolation (`--run-dir` → `GS_RUN_DIR`) | `run_task`/`continue_task` `run_dir` + `_run_env` | `test_run_with_run_dir_creates_dir_and_exports_env` |
 | IR2 | Gateway trigger adapter | `gateway.py` | `test_gateway.py` |
 
 ## Library usage
