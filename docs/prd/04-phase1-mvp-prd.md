@@ -6,6 +6,52 @@
 > [`03-open-threads.md`](./03-open-threads.md). This PRD does not duplicate them — it
 > selects from them and defines the contract for Phase 1.
 
+## Status: SHIPPED (2026-06-30)
+
+Phase 1 is complete and live on the `hermes-lee` deployment. All §6 acceptance
+criteria pass; the system is safe to point at real work.
+
+| # | Criterion | Offline (F-1, 35 tests) | Live (F-2) |
+|---|---|---|---|
+| 1 | Prime + pristine GOLD (F1, F2, F7) | ✅ pass | ✅ pass — `billing-api` GOLD `575693bf` primed ($0.14); transcript line count flat across forks |
+| 2 | End-to-end task (F2, F3) | ✅ pass | ✅ pass — writes to `output/`, `is_error: false`, `cost_usd` populated |
+| 3 | Recover on failure (F4) | ✅ pass | ✅ pass — `continue --session-id <sid>` returns same sid, transcript grows |
+| 4 | Budget + retry caps (F5, F10) | ✅ pass | (not exercised live this deploy — offline coverage is the contract for Phase 1) |
+| 5 | cwd correctness + loud not-found (F6, F9) | ✅ pass | (same — covered offline) |
+| 6 | Single-writer (F8) | ✅ pass | (same — covered offline) |
+| 7 | Gateway trigger (F11, IR2) | ✅ pass | ✅ pass — Discord `run on billing-api:` → single `golden_session` fork; unknown-name hints; ceiling-clamp verified |
+
+**Total live spend:** ~$0.35 across all F-2 flows.
+
+### What landed beyond the original PRD scope
+
+Three issues surfaced during deploy that weren't in the PRD's pre-mortem. Each
+has a permanent fix shipped to `main`:
+
+1. **`terminal.home_mode: real` is required** on this image, not the `auto`
+   default. `auto` drifts the agent's terminal subprocesses into a fake
+   `/opt/data/home` and creates parallel credential dotdirs. Phase 0 of the
+   runbook flips it; full rationale in
+   [`docs/HERMES_HOME_AND_OS_HOME.md`](../HERMES_HOME_AND_OS_HOME.md).
+2. **Hermes env-blocklist strips `ANTHROPIC_BASE_URL`.** `claude` got the auth
+   token but no endpoint → 401. Fix: `_HERMES_FORCE_ANTHROPIC_BASE_URL` in
+   compose (Hermes' own escape hatch) + a fallback re-export in
+   `bin/golden_session`. See runbook Phase B gotcha note.
+3. **Skill auto-loading is model-dependent.** `claude-code-gold/SKILL.md` alone
+   did not make glm-5.2 delegate via `golden_session` — the model edited files
+   directly until `platform_hints.discord.append` injected a routing rule.
+   Raised as [`03-open-threads.md`](./03-open-threads.md) thread #8.
+
+### Operational status
+
+- `main` is at the deployed commit; feature branch merged and deleted.
+- `billing-api` GOLD is live; trigger via Discord `run on billing-api: <task>`
+  from an allowlisted user.
+- The `.claude.bak-20260629T213558Z` backup under `/opt/data/` can be deleted
+  after a few more clean runs (kept as a safety net through the first week).
+
+
+
 ## 1. Overview & goal
 
 Hermes Agent needs to drive the Claude Code CLI programmatically to run non-interactive

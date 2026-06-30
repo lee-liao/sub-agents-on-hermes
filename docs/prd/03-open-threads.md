@@ -2,6 +2,12 @@
 
 Follow-up work on the Hermes → Claude Code task management architecture that has been identified but not yet picked up. Roughly ordered by increasing complexity, but priority is the user's call.
 
+> **Phase 1 status (2026-06-30): SHIPPED.** Threads #1–#7 remain open — none
+> was closed by Phase 1; they were all explicitly deferred per PRD §4. Threads
+> #8 and #9 were added after deploy surfaced two issues the pre-mortem missed.
+> See [`04-phase1-mvp-prd.md`](./04-phase1-mvp-prd.md) Status header for the
+> per-criterion outcome.
+
 ## Thread 1 — Streaming variant of the wrapper
 
 Switch the wrapper from `--output-format json` (which blocks until the CLI exits) to `--output-format stream-json --verbose`. Newline-delimited JSON events arrive as the task runs: tool calls, partial messages, retries, and a final result object.
@@ -78,3 +84,25 @@ If claude-agent-acp is chosen despite its poor GOLD fit, design the workaround p
 ## Picking up a thread
 
 When the user signals to start one, find the corresponding entry in `/home/lee/.claude/projects/-home-lee-hermes-docker-lee/memory/project_hermes_open_threads.md` — that's the cross-conversation reference. This document is the in-project design record; memory is the index.
+
+## Thread 8 (added after Phase 1 deploy) — Skill auto-loading is model-dependent
+
+The `claude-code-gold` skill ships a `SKILL.md` that documents how to delegate via `golden_session`. The Phase 1 assumption was that the gateway agent would read `SKILL.md` and route "run on X:" triggers accordingly. **glm-5.2 did not** — without an explicit `platform_hints.discord.append` system-prompt injection, the model used its own file/terminal tools to do the work directly (9 API calls, buttons, clarifications, direct patch, git commit), defeating the GOLD pattern's "no per-task chatter in shared context" guarantee.
+
+**Why it matters:** the workaround is per-platform (`platform_hints.discord.append`, `platform_hints.slack.append`, etc.) and per-trigger-grammar. Every new skill that depends on the agent choosing delegation over direct action will need the same workaround. That doesn't scale, and a future model may behave differently again.
+
+**Shape of the work:**
+- Audit which models auto-load `SKILL.md` and which don't (claude Sonnet/Opus likely do; glm/qwen/kimi-class models may not).
+- Decide between: (a) stricter guardrails that refuse direct file edits when a registered skill matches the trigger, (b) auto-generated `platform_hints` from the skill registry, (c) doc + acceptance criteria that require per-model verification before shipping a skill.
+- The `platform_hints.discord.append` value currently in `config.yaml` is the deployment-specific fix — promote it to code if (b) is chosen.
+
+## Thread 9 (added after Phase 1 deploy) — Hermes env-blocklist surface area
+
+The Phase 1 deploy hit a 2-hour auth blocker because Hermes silently strips `ANTHROPIC_BASE_URL` from terminal subprocess envs (security blocklist in `tools/environments/local.py`). The blocklist is dynamic — built from `PROVIDER_REGISTRY` plus a hardcoded set — and `env_passthrough` cannot override it (GHSA-rhgp-j443-p4rf). The `_HERMES_FORCE_` prefix is the only escape hatch.
+
+**Why it matters:** any future integration that runs a third-party tool via `terminal()` and depends on env vars that look "secret-y" (base URLs, API endpoints, custom provider config) can hit the same wall. The fix is documented for `ANTHROPIC_BASE_URL` (`docs/HERMES_DEPLOY_AND_TEST.md` Phase B gotcha), but the general pattern is untracked.
+
+**Shape of the work:**
+- One-time audit script that diffs the deployment's required env vars (from `.env`, compose `environment:`, and any tool the wrapper calls) against the live `_build_provider_env_blocklist()` output. Run on every Hermes image bump.
+- Decide whether the `_HERMES_FORCE_` prefix should be set automatically for vars the operator has explicitly put in compose `environment:` (treat compose as opt-in force), or kept as an explicit per-var escape hatch (current behavior).
+- Document the pattern in `docs/HERMES_HOME_AND_OS_HOME.md` or a sibling ops doc so future maintainers don't re-derive it.
