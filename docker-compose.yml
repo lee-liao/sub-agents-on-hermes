@@ -8,6 +8,11 @@ services:
       HERMES_GID: "1001"
       ANTHROPIC_AUTH_TOKEN: "${ANTHROPIC_AUTH_TOKEN}"
       ANTHROPIC_BASE_URL: "${ANTHROPIC_BASE_URL}"
+      # Hermes strips ANTHROPIC_BASE_URL from terminal subprocess envs (security
+      # blocklist in tools/environments/local.py — env_passthrough cannot override,
+      # GHSA-rhgp-j443-p4rf). The _HERMES_FORCE_ prefix is the supported escape
+      # hatch: it unblocks and renames the var so claude sees its endpoint.
+      _HERMES_FORCE_ANTHROPIC_BASE_URL: "${ANTHROPIC_BASE_URL}"
       API_TIMEOUT_MS: "${API_TIMEOUT_MS}"
       PATH: /opt/hermes/.venv/bin:/opt/data/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       VIRTUAL_ENV: /opt/hermes/.venv

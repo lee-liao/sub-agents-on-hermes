@@ -3,11 +3,30 @@
 #
 # Install on the persistent volume so the agent's shell finds it and it survives
 # image updates, e.g.:
-#   cp -r golden_session /opt/data/home/.local/lib/
-#   install -m755 bin/golden_session /opt/data/home/.local/bin/golden_session
-#   # ensure ~/.local/bin is on PATH via ~/.bashrc (same as the claude install)
+#   cp -r golden_session /opt/data/.local/lib/
+#   install -m755 bin/golden_session /opt/data/.local/bin/golden_session
+#   # /opt/data/.local/bin is already on PATH via docker-compose.yml
 #
 # GS_LIB points at the directory CONTAINING the `golden_session` package.
 set -euo pipefail
-GS_LIB="${GS_LIB:-/opt/data/home/.local/lib}"
+GS_LIB="${GS_LIB:-/opt/data/.local/lib}"
+
+# Hermes strips ANTHROPIC_BASE_URL from terminal subprocess envs (security
+# blocklist, tools/environments/local.py) but does NOT strip ANTHROPIC_AUTH_TOKEN
+# (it blocks the older ANTHROPIC_TOKEN name only). Without the base URL, claude
+# has a token but no endpoint → 401 "Invalid bearer token". env_passthrough
+# cannot override (GHSA-rhgp-j443-p4rf). Two fixes:
+#   1. docker-compose.yml sets _HERMES_FORCE_ANTHROPIC_BASE_URL — root-cause fix
+#      (Hermes' own escape hatch), requires `docker compose up -d --force-recreate`.
+#   2. This shim re-exports the base URL from .env — works without a recreate,
+#      covers golden_session calls only.
+# The blocklist only filters *inherited* env, not vars exported *within* the
+# shell, so re-exporting here is effective. Harmless if ANTHROPIC_BASE_URL is
+# already set (e.g. by fix 1).
+if [ -z "${ANTHROPIC_BASE_URL:-}" ] && [ -f /opt/data/hermes-docker-lee/.env ]; then
+  _base="$(sed -n 's/^ANTHROPIC_BASE_URL=//p' /opt/data/hermes-docker-lee/.env | head -1)"
+  [ -n "$_base" ] && export ANTHROPIC_BASE_URL="$_base"
+  unset _base
+fi
+
 PYTHONPATH="${GS_LIB}:${PYTHONPATH:-}" exec python3 -m golden_session "$@"

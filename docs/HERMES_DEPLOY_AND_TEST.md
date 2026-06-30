@@ -144,6 +144,21 @@ claude -p "reply OK" --max-turns 1
 "auth blocker D3 — set the auth vars in `.env` (see `.env.example`) and
 `docker compose up -d`." No delegation runs until this passes.
 
+> **Hermes env-blocklist gotcha (401 "Invalid bearer token"):** Hermes strips
+> `ANTHROPIC_BASE_URL` from terminal subprocess envs (security blocklist in
+> `tools/environments/local.py`) but does **not** strip `ANTHROPIC_AUTH_TOKEN`
+> (it blocks only the older `ANTHROPIC_TOKEN` name). If the auth call above
+> 401s despite the vars being in `.env`, the base URL is being stripped on the
+> way to `claude`. Two fixes (both ship with this repo):
+> 1. `docker-compose.yml` sets `_HERMES_FORCE_ANTHROPIC_BASE_URL` — Hermes'
+>    own escape hatch (`tools/environments/local.py:76`). Root-cause fix,
+>    requires `docker compose up -d --force-recreate hermes`.
+> 2. `bin/golden_session` shim re-exports the base URL from `.env` before
+>    invoking `claude` — works without a recreate, covers `golden_session`
+>    calls only.
+> `env_passthrough` config CANNOT override the blocklist
+> (GHSA-rhgp-j443-p4rf).
+
 ---
 
 ## Phase C — Install the wrapper onto the bind mount **[OPERATOR]** + **[AGENT]**
@@ -253,6 +268,25 @@ guardrails (IR2) — without them, anyone in a channel can spend money.
 
 ✅ **Check:** the skill file is present; `hermes status` shows the Discord
 connection up; the allowlist contains at least one real user ID.
+
+**[AGENT]** add a platform hint so the gateway agent routes "run on X:" triggers
+through `golden_session` instead of doing the work itself. The skill alone is
+not auto-loaded by all models — without this hint, smaller models (e.g.
+glm-5.2) edit files directly instead of delegating, defeating the GOLD pattern:
+
+```bash
+hermes config set platform_hints.discord.append "GOLDEN SESSION TRIGGER: When a message matches 'run on <name>: <task>', you MUST delegate via the golden_session CLI: golden_session run --name <name> --task \"<task>\". When the user says 'list', run: golden_session list. Load the claude-code-gold skill. Never use your own file/terminal tools to edit the project directly."
+```
+
+Then restart the gateway so the hint takes effect:
+```bash
+docker exec -u hermes hermes-lee s6-svc -r /run/service/gateway-default
+```
+
+✅ **Check:** send a fresh Discord "run on billing-api: <small task>" and confirm
+the gateway log shows a single `terminal` call (`golden_session`), NOT
+`patch`/`read_file`/`file` tool calls. A new fork transcript should appear under
+`~/.claude/projects/`.
 
 ---
 
