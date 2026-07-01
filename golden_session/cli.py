@@ -6,6 +6,7 @@ caller only ever supplies a human-readable name (F11 / Decision A2).
 
     golden_session prime   --name N --cwd PATH --context-file F   # once, writes registry
     golden_session run     --name N --task "..."                  # fork a task (F2)
+    golden_session run     --name N --task-template T.md --param WORK_ITEM_ID=238  # fork from a template
     golden_session continue --name N --session-id SID --task "..."  # recover (F4) [direct/automation]
     golden_session list                                          # discovery (F11)
     golden_session cleanup --name N --keep SID                   # manual janitor
@@ -104,7 +105,7 @@ def _cmd_prime(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner)
 def _cmd_run(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner) -> int:
     resolved = registry.resolve(ns.name, _overrides(ns))
     gs = _session(resolved, runner)
-    result = gs.run_task(resolved_task(ns), model=resolved.model, run_dir=ns.run_dir)
+    result = gs.run_task(resolved_task(ns, resolved.cwd), model=resolved.model, run_dir=ns.run_dir)
     _emit(
         {
             "ok": not result.is_error,
@@ -121,7 +122,11 @@ def _cmd_continue(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunn
     resolved = registry.resolve(ns.name, _overrides(ns))
     gs = _session(resolved, runner)
     result = gs.continue_task(
-        ns.session_id, resolved_task(ns), fork=ns.fork, model=resolved.model, run_dir=ns.run_dir
+        ns.session_id,
+        resolved_task(ns, resolved.cwd),
+        fork=ns.fork,
+        model=resolved.model,
+        run_dir=ns.run_dir,
     )
     _emit(
         {
@@ -192,10 +197,49 @@ def _session(resolved: ResolvedRun, runner: ClaudeRunner) -> GoldenSession:
     )
 
 
-def resolved_task(ns: argparse.Namespace) -> str:
-    if not ns.task:
-        raise RegistryError("missing required arg: task")
-    return ns.task
+def resolved_task(ns: argparse.Namespace, cwd: str) -> str:
+    """Return the task string from either ``--task`` or ``--task-template``.
+
+    ``--task-template`` is resolved *against the session's workspace cwd* when
+    relative, so a caller (the skill, the gateway) supplies only the file name —
+    the engine locates the copy that ships in the GOLD's workspace. `${KEY}`
+    placeholders are filled from repeated ``--param KEY=VALUE``.
+    """
+    template = getattr(ns, "task_template", None)
+    if ns.task and template:
+        raise RegistryError("pass either --task or --task-template, not both")
+    if template:
+        return _render_task_template(template, cwd, getattr(ns, "param", None) or [])
+    if ns.task:
+        return ns.task
+    raise RegistryError("missing required arg: provide --task or --task-template")
+
+
+def _render_task_template(template: str, cwd: str, params: Sequence[str]) -> str:
+    path = template if os.path.isabs(template) else os.path.join(cwd, template)
+    if not os.path.isfile(path):
+        raise RegistryError(f"task template not found: {path}")
+    with open(path, "r", encoding="utf-8") as fh:
+        text = fh.read()
+    for key, value in _parse_params(params).items():
+        token = "${" + key + "}"
+        if token not in text:
+            # Fail loud on a param typo instead of silently sending an
+            # unsubstituted task (a param whose placeholder never appears).
+            raise RegistryError(f"--param {key}=…: placeholder {token} not found in {path}")
+        text = text.replace(token, value)
+    return text
+
+
+def _parse_params(params: Sequence[str]) -> dict:
+    out: dict = {}
+    for item in params:
+        key, sep, value = item.partition("=")
+        key = key.strip()
+        if not sep or not key:
+            raise RegistryError(f"--param must be KEY=VALUE, got {item!r}")
+        out[key] = value
+    return out
 
 
 def _overrides(ns: argparse.Namespace) -> dict:
@@ -254,14 +298,14 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sr = sub.add_parser("run", help="Fork a task from a named GOLD (F2).")
     sr.add_argument("--name", required=True)
-    sr.add_argument("--task", required=True)
+    _add_task_args(sr)
     _add_override_args(sr)
     sr.set_defaults(func=_cmd_run)
 
     sc = sub.add_parser("continue", help="Recover/branch an existing task (F4); direct/automation only.")
     sc.add_argument("--name", required=True)
     sc.add_argument("--session-id", required=True)
-    sc.add_argument("--task", required=True)
+    _add_task_args(sc)
     sc.add_argument("--fork", action="store_true", help="Branch a new fork instead of appending.")
     _add_override_args(sc)
     sc.set_defaults(func=_cmd_continue)
@@ -280,6 +324,25 @@ def _build_parser() -> argparse.ArgumentParser:
     srm.set_defaults(func=_cmd_remove)
 
     return p
+
+
+def _add_task_args(sp: argparse.ArgumentParser) -> None:
+    # Exactly one of these supplies the task; validated in resolved_task so the
+    # error is a structured RegistryError, not an argparse usage dump.
+    sp.add_argument("--task", default=None, help="Literal task prompt.")
+    sp.add_argument(
+        "--task-template",
+        default=None,
+        help="Task-prompt file with ${KEY} placeholders; resolved against the "
+        "session workspace cwd when relative.",
+    )
+    sp.add_argument(
+        "--param",
+        action="append",
+        default=None,
+        metavar="KEY=VALUE",
+        help="Fill a ${KEY} placeholder in --task-template (repeatable).",
+    )
 
 
 def _add_override_args(sp: argparse.ArgumentParser) -> None:

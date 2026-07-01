@@ -1,4 +1,21 @@
 {
+  "permissions": {
+    "allow": [
+      "Read",
+      "Write",
+      "Edit",
+      "MultiEdit",
+      "Bash(mkdir *)",
+      "Bash(python3 *)",
+      "Bash(echo *)",
+      "Bash(curl *)",
+      "mcp__azure-devops__list_projects",
+      "mcp__azure-devops__get_work_item"
+    ]
+  },
+  "enabledMcpjsonServers": [
+    "azure-devops"
+  ],
   "hooks": {
     "PreToolUse": [
       {
@@ -6,7 +23,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/confine_writes.py"
+            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/confine_writes.py\""
           }
         ]
       }

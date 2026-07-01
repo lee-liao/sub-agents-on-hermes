@@ -99,6 +99,83 @@ def test_run_without_run_dir_leaves_env_untouched(fake, capsys, workspace, regis
     assert fake.envs[-1] is None                              # no overlay when run_dir absent
 
 
+def _last_task(fake):
+    """The task string the runner received (the arg after --task or -p)."""
+    call = fake.calls[-1]
+    for flag in ("--task", "-p", "--print"):
+        if flag in call:
+            return call[call.index(flag) + 1]
+    # GoldenSession passes the prompt positionally at the end; fall back to it.
+    return call[-1]
+
+
+def test_run_task_template_resolves_against_cwd_and_substitutes(
+    fake, capsys, workspace, registry_path, tmp_path
+):
+    prime(fake, capsys, workspace)
+    # Template lives IN the workspace; caller passes only its file name.
+    template = tmp_path / "ws" / "ado-workitem-task.md"
+    template.write_text("Work item ${WORK_ITEM_ID}: do the thing.", encoding="utf-8")
+
+    code, out, _ = run_cli(
+        [
+            "run", "--name", "billing-api",
+            "--task-template", "ado-workitem-task.md",
+            "--param", "WORK_ITEM_ID=238",
+        ],
+        fake,
+        capsys,
+    )
+    assert code == 0
+    assert "Work item 238: do the thing." in _last_task(fake)
+
+
+def test_run_task_and_template_together_is_refused(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    code, _, err = run_cli(
+        ["run", "--name", "billing-api", "--task", "x", "--task-template", "t.md"],
+        fake,
+        capsys,
+    )
+    assert code == 2
+    assert json.loads(err)["error"] == "RegistryError"
+
+
+def test_run_without_task_or_template_is_refused(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    code, _, err = run_cli(["run", "--name", "billing-api"], fake, capsys)
+    assert code == 2
+    assert json.loads(err)["error"] == "RegistryError"
+
+
+def test_run_missing_template_fails_loud(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    code, _, err = run_cli(
+        ["run", "--name", "billing-api", "--task-template", "nope.md"],
+        fake,
+        capsys,
+    )
+    assert code == 2
+    assert json.loads(err)["error"] == "RegistryError"
+
+
+def test_run_param_typo_fails_loud(fake, capsys, workspace, registry_path, tmp_path):
+    prime(fake, capsys, workspace)
+    template = tmp_path / "ws" / "t.md"
+    template.write_text("Item ${WORK_ITEM_ID}", encoding="utf-8")
+    code, _, err = run_cli(
+        [
+            "run", "--name", "billing-api",
+            "--task-template", "t.md",
+            "--param", "WORKITEM_ID=238",   # typo: missing underscore
+        ],
+        fake,
+        capsys,
+    )
+    assert code == 2
+    assert json.loads(err)["error"] == "RegistryError"
+
+
 def test_continue_then_list_and_cleanup(fake, capsys, workspace, registry_path):
     prime(fake, capsys, workspace)
     _, out, _ = run_cli(["run", "--name", "billing-api", "--task", "attempt"], fake, capsys)

@@ -1,0 +1,7 @@
+# Secrets — never commit. Copied from *.example at deploy time; real files hold
+# the Azure DevOps PAT / org env and stay local.
+.mcp.json
+.claude/settings.local.json
+
+# Per-task scratch — outputs live under $GS_RUN_DIR, not in the workspace.
+runs/

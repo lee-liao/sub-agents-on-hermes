@@ -77,6 +77,42 @@ fragile. Two clean options:
   with a `Bash` matcher that rejects commands referencing absolute paths
   outside `$GS_RUN_DIR`.
 
+## Secrets reach the hook (and Bash) via `settings.local.json`, not `.mcp.json`
+
+A workspace that talks to an authenticated service (e.g. Azure DevOps) needs a
+secret (a PAT) reachable by both the MCP server *and* the agent's Bash/`python3`.
+The reliable single-source-of-truth is the `env` block of
+`.claude/settings.local.json` (git-ignored):
+
+| File | Git-tracked? | Contents |
+|---|:---:|---|
+| `.claude/settings.json` | yes | hooks, `permissions`, `enabledMcpjsonServers` — no secrets |
+| `.claude/settings.local.json` | no | `env` block only — the PAT, org URL, project |
+| `.mcp.json` | no | server `command` + `args` only — **no** `env` block |
+
+Claude Code injects that `env` block into its own process environment; the MCP
+server (a child process) inherits it, and the agent's Bash/`python3` reads it via
+`os.environ`. Putting the secret in `.mcp.json`'s `env` instead reaches the MCP
+subprocess *only* — a `curl`/download from Bash then 401s. See
+[`examples/workspace-template/`](../examples/workspace-template/) for the shipped
+`.example` files and `.gitignore`.
+
+## Headless `claude -p` blocks `$VAR` in Bash — resolve env vars in Python
+
+This is the single biggest cause of failed golden-session runs. The headless CLI
+rejects **any** Bash command containing `$NAME` (even `echo $GS_RUN_DIR`) with
+"Contains simple_expansion" — a security layer *independent of* the
+`Bash(prefix *)` allow-list. So a task must never reference `$GS_RUN_DIR` (or any
+secret) in a Bash line. Instead:
+
+- Resolve env vars in Python: `python3 -c "import os; print(os.environ.get('GS_RUN_DIR'))"`.
+- Put authenticated network calls in a helper that reads `os.environ` internally
+  (the shipped `.claude/ado_download.py`), so the Bash line carries no `$` and no
+  secret.
+
+The workspace-template README's "Headless task-prompt rules" and the shipped
+`ado-workitem-task.md` encode these; author task prompts from that template.
+
 ## Cleanup
 
 `cleanup_forks` deletes *transcripts* only (`session.py`), not data dirs. So the

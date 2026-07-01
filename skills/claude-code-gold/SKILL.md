@@ -1,6 +1,6 @@
 ---
 name: claude-code-gold
-description: Delegate a coding task to a primed Claude Code GOLD session via the golden_session CLI. Use when the user asks to run a coding task against a known project by name (e.g. "run on billing-api: ...").
+description: Delegate a coding task to a primed Claude Code GOLD session via the golden_session CLI. Use when the user asks to run a coding task against a known project by name (e.g. "golden ADO 238").
 ---
 
 # claude-code-gold — GOLD-aware delegation guide
@@ -22,6 +22,16 @@ guardrail (GOLD protection, budget caps, single-writer, loud-not-found).
    golden_session run --name <name> --task "<task>"
    ```
 
+   For a task that has a shipped template in the workspace (e.g. an ADO work
+   item), pass the template file name and its parameters instead of a literal
+   task — the **engine** reads the template from the session's workspace cwd and
+   fills `${KEY}` placeholders in code (you do no substitution yourself):
+
+   ```
+   golden_session run --name ado-ready \
+     --task-template ado-workitem-task.md --param WORK_ITEM_ID=<id>
+   ```
+
    Optional overrides (clamped to the session's ceilings):
    `--budget <usd>`, `--turns <n>`, `--tools Read Edit Bash`, `--model <m>`.
 
@@ -29,6 +39,25 @@ guardrail (GOLD protection, budget caps, single-writer, loud-not-found).
    `terminal_reason`, `cost_usd`, `session_id`, and `result`. Treat **only
    explicit success** (`is_error: false`) as success — a green-but-stalled task
    is a known Phase 1 gap (PRD §5).
+
+## IM trigger grammar (`golden` namespace)
+
+When triggered from a chat surface (Discord/IM) alongside many other skills, the
+trigger **must** lead with the distinctive keyword `golden` — generic verbs
+(`handle 238`, `process 238`) and bare numbers (`238`) are too ambiguous with
+hundreds of skills loaded and will **not** route here.
+
+- `golden ADO <id>` — run an ADO work item. Expand this to the template form
+  above: `golden_session run --name ado-ready --task-template
+  ado-workitem-task.md --param WORK_ITEM_ID=<id>`. The engine (not you) resolves
+  the template from the workspace and substitutes the id.
+- `golden run <id> on <session>` — run with an explicit session name.
+- `golden list` — the registered sessions and their args.
+- `golden status <session>` — discovery for one session.
+
+Note: the reference IM gateway (`gateway.py`) currently parses only the generic
+`run on <name>: <task>` grammar; the `golden …` shorthands above are expanded by
+this skill into the CLI calls, not by the gateway parser.
 
 ## Discovery
 

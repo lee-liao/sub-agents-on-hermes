@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy this file to .mcp.json. It registers the MCP server ONLY — command + args, NO env block. Secrets live in .claude/settings.local.json's env block, which claude injects into its own environment; this server, a child process, inherits them. .mcp.json is gitignored as belt-and-suspenders (a future edit might add a secret).",
+  "mcpServers": {
+    "azure-devops": {
+      "command": "npx",
+      "args": ["-y", "@tiberriver256/mcp-server-azure-devops"]
+    }
+  }
+}

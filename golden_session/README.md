@@ -74,10 +74,29 @@ golden_session prime --name billing-api \
 
 golden_session run  --name billing-api --task "add a healthcheck endpoint"
 golden_session run  --name billing-api --task "fix the test" --budget 1.00   # clamped to ceiling
+golden_session run  --name ado-ready --task-template ado-workitem-task.md --param WORK_ITEM_ID=238
 golden_session continue --name billing-api --session-id <sid> --task "fix: …"  # F4 (direct/automation)
 golden_session list
 golden_session cleanup --name billing-api --keep <winner-sid>
 ```
+
+### Task templates (`--task-template` / `--param`)
+
+Instead of a literal `--task`, a run/continue can name a prompt template that
+ships **in the session's workspace** and fill its `${KEY}` placeholders:
+
+- `--task-template FILE` — relative paths resolve against the session's `cwd`
+  (from the registry), so a caller supplies only the file name; the engine reads
+  the copy in the GOLD's workspace.
+- `--param KEY=VALUE` (repeatable) — each replaces `${KEY}` in the file. `$`
+  without braces (e.g. `$GS_RUN_DIR` in the prompt) is left untouched.
+- Fail-loud: `--task` and `--task-template` are mutually exclusive, a missing
+  file errors, and a `--param` whose `${KEY}` isn't in the template errors
+  (catches typos rather than sending an unsubstituted task).
+
+Substitution happens in code, not by the LLM — the same "guardrails in code"
+stance as the rest of the engine. See
+[`examples/workspace-template/ado-workitem-task.md`](../examples/workspace-template/ado-workitem-task.md).
 
 Every command prints a JSON object (`{"ok": …}`); errors print a structured JSON
 error to stderr with `known_names` hints for unknown names. Override the registry
@@ -99,6 +118,22 @@ reply = adapter.handle(user_id, "run on billing-api: add retries  budget=1.00")
 It enforces the two trigger-boundary guardrails (allowlist + ceiling clamp) and
 resolves identity in code (the caller never supplies `golden_id`/`cwd`). MVP
 triggers **fresh forks by name only**; continuation & streaming are Phase 2.
+
+## Diagnosing a failed run
+
+A non-zero exit / `is_error: true` is not always a real failure:
+
+- **Cold-cache budget false-failure.** A low `--budget` (e.g. `0.3`) can trip
+  `error_max_budget_usd` after only ~4 turns when the cache is cold
+  (`cache_read_input_tokens` ~7k vs ~80k+ warm). The agent often *finished the
+  work* and reported results in its final turn, then the budget check fired on
+  write. Before declaring failure, if `subtype == error_max_budget_usd` **and**
+  the turn count is low **and** `cache_read_input_tokens` is small, read the
+  transcript's last assistant turn — the deliverables are usually there. Raise
+  `--budget` or just re-run promptly (warm cache) for a clean pass.
+- **Green-but-garbage.** The inverse: `is_error: false` does not prove the task
+  was done correctly (PRD §5). Author tasks to fail loud and check the reported
+  artifacts, not just the exit code.
 
 ## Accepted Phase 1 limitations (from the PRD §5)
 

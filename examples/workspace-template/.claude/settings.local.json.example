@@ -1,0 +1,9 @@
+{
+  "_comment": "Copy this file to settings.local.json and fill in real values. settings.local.json is gitignored (never commit the PAT). Claude Code merges it over settings.json and injects this env block into claude's process environment — the MCP server inherits it as a child process, and the agent's Bash/python3 reads the same values via os.environ. Single source of truth for secrets.",
+  "env": {
+    "AZURE_DEVOPS_ORG_URL": "https://dev.azure.com/<your-org>",
+    "AZURE_DEVOPS_AUTH_METHOD": "pat",
+    "AZURE_DEVOPS_PAT": "<your-personal-access-token>",
+    "AZURE_DEVOPS_DEFAULT_PROJECT": "<your-project>"
+  }
+}
