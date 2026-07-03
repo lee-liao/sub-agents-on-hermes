@@ -24,6 +24,7 @@ from .registry import Registry, RegistryEntry, ResolvedRun
 from .result import TaskResult
 from .runner import RunOutput, default_runner, ensure_claude
 from .session import GoldenSession
+from .trust import config_file_path, set_workspace_trust
 
 __version__ = "0.1.0"
 
@@ -40,6 +41,8 @@ __all__ = [
     "RunOutput",
     "default_runner",
     "ensure_claude",
+    "set_workspace_trust",
+    "config_file_path",
     # errors
     "GoldenSessionError",
     "DoublePrimeError",

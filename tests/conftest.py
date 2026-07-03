@@ -145,6 +145,19 @@ def registry_path(tmp_path, monkeypatch):
     return str(p)
 
 
+@pytest.fixture(autouse=True)
+def claude_config(tmp_path, monkeypatch):
+    """Redirect Claude Code's trust file to a temp path for EVERY test.
+
+    Improvement #1 makes `prime` write projects[cwd].hasTrustDialogAccepted into
+    $CLAUDE_CONFIG_FILE (default ~/.claude.json). Autouse so no test — old or new —
+    can mutate the developer's real config. Returns the temp path for assertions.
+    """
+    p = tmp_path / "claude.json"
+    monkeypatch.setenv("CLAUDE_CONFIG_FILE", str(p))
+    return str(p)
+
+
 @pytest.fixture
 def workspace(tmp_path):
     ws = tmp_path / "ws"

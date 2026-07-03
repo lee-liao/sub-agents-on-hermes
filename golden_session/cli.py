@@ -26,6 +26,7 @@ from .errors import GoldenSessionError, RegistryError
 from .registry import Registry, ResolvedRun
 from .runner import ClaudeRunner, default_runner
 from .session import GoldenSession
+from .trust import config_file_path, set_workspace_trust
 
 
 def main(argv: Optional[Sequence[str]] = None, *, runner: ClaudeRunner = default_runner) -> int:
@@ -89,6 +90,21 @@ def _cmd_prime(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner)
         },
         ceilings={"max_turns": ceiling_turns, "max_budget_usd": ceiling_budget},
     )
+
+    # #1 — make the workspace trusted so the FIRST headless run isn't silently
+    # stripped of its permissions.allow. Best-effort: never fail prime over it.
+    trust_set: Optional[bool] = None
+    if not ns.no_trust:
+        trust_set = set_workspace_trust(entry.cwd)
+        if not trust_set:
+            print(
+                f"warning: could not set the trust flag for {entry.cwd} in "
+                f"{config_file_path()}; the first headless run may have its "
+                f"permissions.allow ignored. Fix perms and run "
+                f"`golden_session trust --name {entry.name}`, or set "
+                f'projects["{os.path.abspath(entry.cwd)}"].hasTrustDialogAccepted=true manually.',
+                file=sys.stderr,
+            )
     _emit(
         {
             "ok": True,
@@ -97,6 +113,7 @@ def _cmd_prime(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner)
             "golden_id": golden_id,
             "cwd": entry.cwd,
             "prime_cost_usd": result.cost_usd,
+            "trust_set": trust_set,
         }
     )
     return 0
@@ -105,13 +122,16 @@ def _cmd_prime(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner)
 def _cmd_run(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner) -> int:
     resolved = registry.resolve(ns.name, _overrides(ns))
     gs = _session(resolved, runner)
-    result = gs.run_task(resolved_task(ns, resolved.cwd), model=resolved.model, run_dir=ns.run_dir)
+    # #2 — resolve here (default when omitted) so the JSON reports the concrete
+    # dir a caller/IM recap can `ls`, and the fork receives the same path.
+    run_dir = gs.resolve_run_dir(ns.run_dir)
+    result = gs.run_task(resolved_task(ns, resolved.cwd), model=resolved.model, run_dir=run_dir)
     _emit(
         {
             "ok": not result.is_error,
             "command": "run",
             "name": ns.name,
-            "run_dir": ns.run_dir,
+            "run_dir": run_dir,
             **result.to_dict(),
         }
     )
@@ -121,12 +141,13 @@ def _cmd_run(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner) -
 def _cmd_continue(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner) -> int:
     resolved = registry.resolve(ns.name, _overrides(ns))
     gs = _session(resolved, runner)
+    run_dir = gs.resolve_run_dir(ns.run_dir)   # #2 — default when omitted
     result = gs.continue_task(
         ns.session_id,
         resolved_task(ns, resolved.cwd),
         fork=ns.fork,
         model=resolved.model,
-        run_dir=ns.run_dir,
+        run_dir=run_dir,
     )
     _emit(
         {
@@ -134,7 +155,7 @@ def _cmd_continue(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunn
             "command": "continue",
             "name": ns.name,
             "forked": ns.fork,
-            "run_dir": ns.run_dir,
+            "run_dir": run_dir,
             **result.to_dict(),
         }
     )
@@ -178,6 +199,50 @@ def _cmd_cleanup(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunne
 def _cmd_remove(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner) -> int:
     registry.remove(ns.name)
     _emit({"ok": True, "command": "remove", "name": ns.name})
+    return 0
+
+
+def _cmd_trust(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner) -> int:
+    """Mark a workspace trusted in Claude Code (#1) — for workspaces primed before
+    this landed, or when `prime --no-trust` was used. Resolve the path from --cwd
+    or from a registered --name."""
+    if ns.cwd:
+        cwd, name = ns.cwd, None
+    else:
+        entry = registry.get(ns.name)  # RegistryError (with hints) if unknown
+        cwd, name = entry.cwd, entry.name
+    ok = set_workspace_trust(cwd)
+    _emit(
+        {
+            "ok": ok,
+            "command": "trust",
+            "name": name,
+            "cwd": os.path.abspath(cwd),
+            "config_file": config_file_path(),
+            "trust_set": ok,
+        }
+    )
+    return 0 if ok else 1
+
+
+def _cmd_set_ceiling(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner) -> int:
+    """Raise/lower a primed session's ceilings without re-priming (#3)."""
+    entry = registry.update(
+        ns.name,
+        max_turns=ns.max_turns,
+        max_budget_usd=ns.max_budget_usd,
+        default_turns=ns.default_turns,
+        default_budget=ns.default_budget,
+    )
+    _emit(
+        {
+            "ok": True,
+            "command": "set-ceiling",
+            "name": entry.name,
+            "ceilings": entry.ceilings,
+            "defaults": entry.defaults,
+        }
+    )
     return 0
 
 
@@ -294,6 +359,13 @@ def _build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--max-continues", type=int, default=3, help="F10 retry ceiling default.")
     sp.add_argument("--ceiling-turns", type=int, default=None, help="Override clamp for turns.")
     sp.add_argument("--ceiling-budget", type=float, default=None, help="Override clamp for budget.")
+    sp.add_argument(
+        "--no-trust",
+        action="store_true",
+        help="Do NOT set the Claude Code trust flag for the workspace (#1). "
+        "Only if you manage trust out-of-band; otherwise the first headless run "
+        "may have its permissions.allow silently ignored.",
+    )
     sp.set_defaults(func=_cmd_prime)
 
     sr = sub.add_parser("run", help="Fork a task from a named GOLD (F2).")
@@ -322,6 +394,38 @@ def _build_parser() -> argparse.ArgumentParser:
     srm = sub.add_parser("remove", help="Remove a registry entry (does not delete transcripts).")
     srm.add_argument("--name", required=True)
     srm.set_defaults(func=_cmd_remove)
+
+    st = sub.add_parser(
+        "trust",
+        help="Mark a workspace trusted in Claude Code so headless runs keep their "
+        "permissions.allow (#1). Use --name (registered) or --cwd (path).",
+    )
+    stg = st.add_mutually_exclusive_group(required=True)
+    stg.add_argument("--name", help="Registered session name; its cwd is trusted.")
+    stg.add_argument("--cwd", help="Workspace path to trust directly.")
+    st.set_defaults(func=_cmd_trust)
+
+    ssc = sub.add_parser(
+        "set-ceiling",
+        help="Change a primed session's ceilings without re-priming (#3). "
+        "Mutates ceilings and defaults together, atomically.",
+    )
+    ssc.add_argument("--name", required=True)
+    ssc.add_argument("--max-turns", type=int, default=None, help="New ceiling for turns.")
+    ssc.add_argument("--max-budget-usd", type=float, default=None, help="New ceiling for budget.")
+    ssc.add_argument(
+        "--default-turns",
+        type=int,
+        default=None,
+        help="Set defaults.max_turns separately (else it tracks --max-turns).",
+    )
+    ssc.add_argument(
+        "--default-budget",
+        type=float,
+        default=None,
+        help="Set defaults.max_budget_usd separately (else it tracks --max-budget-usd).",
+    )
+    ssc.set_defaults(func=_cmd_set_ceiling)
 
     return p
 

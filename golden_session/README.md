@@ -72,13 +72,35 @@ golden_session prime --name billing-api \
   --ceiling-turns 40 --ceiling-budget 2.00 \
   --tools Read Edit Bash                       # prints golden_id, writes registry.json
 
-golden_session run  --name billing-api --task "add a healthcheck endpoint"
+golden_session run  --name billing-api --task "add a healthcheck endpoint"     # run-dir defaults to <cwd>/runs/<ts>
 golden_session run  --name billing-api --task "fix the test" --budget 1.00   # clamped to ceiling
 golden_session run  --name ado-ready --task-template ado-workitem-task.md --param WORK_ITEM_ID=238
 golden_session continue --name billing-api --session-id <sid> --task "fix: …"  # F4 (direct/automation)
 golden_session list
 golden_session cleanup --name billing-api --keep <winner-sid>
+golden_session set-ceiling --name billing-api --max-turns 45 --max-budget-usd 3.00  # raise caps, no re-prime
+golden_session trust --name billing-api                        # (re)mark workspace trusted for headless runs
 ```
+
+### Operational hardening (learned from production incidents)
+
+- **Trust on prime.** `prime` marks the workspace trusted in Claude Code's
+  `~/.claude.json` (`$CLAUDE_CONFIG_FILE` honoured) so the **first** headless run
+  isn't silently stripped of its `permissions.allow` (untrusted workspaces have
+  the whole allowlist discarded — `Read` still works, so it looks healthy while
+  every `Bash`/`mcp__*` call is denied). Best-effort and non-fatal; `--no-trust`
+  opts out, and `golden_session trust --name/--cwd` fixes a workspace primed
+  before this shipped. `prime`'s JSON reports `"trust_set": true|false|null`.
+- **Default run-dir.** Omitting `--run-dir` no longer produces a silent-empty run
+  (the confine-writes hook fails closed when `GS_RUN_DIR` is unset). Output
+  defaults to `<workspace>/runs/<timestamp>-<uid>` — colocated in the workspace so
+  the artifact inherits its `.mcp.json`/trust/CLAUDE.md perimeter, unique per run,
+  and always exported as `GS_RUN_DIR`. `--run-dir` still overrides. Add `runs/` to
+  each workspace's `.gitignore` (the shipped template does).
+- **`set-ceiling`.** Raise/lower a primed session's caps without destroying the
+  GOLD (re-prime) or hand-editing `registry.json`. Validated, atomic, and keeps
+  `ceilings`/`defaults` consistent. Takes effect on the **next** run (caps are
+  read at launch, not mid-run).
 
 ### Task templates (`--task-template` / `--param`)
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
@@ -93,10 +94,109 @@ def test_run_with_run_dir_creates_dir_and_exports_env(fake, capsys, workspace, r
     assert fake.envs[-1]["GS_RUN_DIR"] == str(run_dir)        # F12: exported to subprocess
 
 
-def test_run_without_run_dir_leaves_env_untouched(fake, capsys, workspace, registry_path):
+def test_run_without_run_dir_defaults_under_workspace(fake, capsys, workspace, registry_path):
+    # #2 — omitting --run-dir must NOT leave GS_RUN_DIR unset (the silent-empty
+    # footgun); it defaults to <workspace>/runs/<ts>-<uid> and is created+exported.
     prime(fake, capsys, workspace)
-    run_cli(["run", "--name", "billing-api", "--task", "x"], fake, capsys)
-    assert fake.envs[-1] is None                              # no overlay when run_dir absent
+    code, out, _ = run_cli(["run", "--name", "billing-api", "--task", "x"], fake, capsys)
+    assert code == 0
+    run_dir = json.loads(out)["run_dir"]
+    expected_root = os.path.join(os.path.abspath(workspace), "runs")
+    assert run_dir.startswith(expected_root)                 # per-workspace default
+    assert os.path.isdir(run_dir)                            # created
+    assert fake.envs[-1]["GS_RUN_DIR"] == run_dir            # exported to the fork
+
+
+def test_run_default_run_dirs_are_unique(fake, capsys, workspace, registry_path):
+    # #2 — two runs (even back-to-back within a second) get distinct dirs.
+    prime(fake, capsys, workspace)
+    _, out1, _ = run_cli(["run", "--name", "billing-api", "--task", "a"], fake, capsys)
+    _, out2, _ = run_cli(["run", "--name", "billing-api", "--task", "b"], fake, capsys)
+    assert json.loads(out1)["run_dir"] != json.loads(out2)["run_dir"]
+
+
+def test_prime_sets_trust_flag(fake, capsys, workspace, registry_path, claude_config):
+    # #1 — prime marks the workspace trusted in $CLAUDE_CONFIG_FILE.
+    code, out = prime(fake, capsys, workspace)
+    assert code == 0
+    assert json.loads(out)["trust_set"] is True
+    cfg = json.load(open(claude_config, encoding="utf-8"))
+    assert cfg["projects"][os.path.abspath(workspace)]["hasTrustDialogAccepted"] is True
+
+
+def test_prime_no_trust_skips_flag(fake, capsys, workspace, registry_path, claude_config):
+    # #1 — --no-trust leaves the config untouched and reports trust_set=null.
+    code, out, _ = run_cli(
+        ["prime", "--name", "billing-api", "--cwd", workspace, "--context", "x", "--no-trust"],
+        fake,
+        capsys,
+    )
+    assert code == 0
+    assert json.loads(out)["trust_set"] is None
+    assert not os.path.exists(claude_config)                 # nothing written
+
+
+def test_prime_trust_preserves_existing_config(fake, capsys, workspace, registry_path, claude_config):
+    # #1 — the write must not clobber OAuth/other keys already in the file.
+    with open(claude_config, "w", encoding="utf-8") as fh:
+        json.dump({"oauthAccount": {"token": "secret"}, "projects": {"/other": {"x": 1}}}, fh)
+    prime(fake, capsys, workspace)
+    cfg = json.load(open(claude_config, encoding="utf-8"))
+    assert cfg["oauthAccount"]["token"] == "secret"          # untouched
+    assert cfg["projects"]["/other"] == {"x": 1}             # untouched
+    assert cfg["projects"][os.path.abspath(workspace)]["hasTrustDialogAccepted"] is True
+
+
+def test_trust_subcommand_by_name(fake, capsys, workspace, registry_path, claude_config):
+    # Prime without trust, then set it via the subcommand resolving cwd from name.
+    run_cli(
+        ["prime", "--name", "billing-api", "--cwd", workspace, "--context", "x", "--no-trust"],
+        fake,
+        capsys,
+    )
+    code, out, _ = run_cli(["trust", "--name", "billing-api"], fake, capsys)
+    assert code == 0 and json.loads(out)["trust_set"] is True
+    cfg = json.load(open(claude_config, encoding="utf-8"))
+    assert cfg["projects"][os.path.abspath(workspace)]["hasTrustDialogAccepted"] is True
+
+
+def test_trust_subcommand_by_cwd(fake, capsys, workspace, registry_path, claude_config):
+    code, out, _ = run_cli(["trust", "--cwd", workspace], fake, capsys)
+    assert code == 0 and json.loads(out)["trust_set"] is True
+    cfg = json.load(open(claude_config, encoding="utf-8"))
+    assert cfg["projects"][os.path.abspath(workspace)]["hasTrustDialogAccepted"] is True
+
+
+def test_set_ceiling_updates_ceilings_and_defaults(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)  # ceilings 40/2.0, defaults 20/1.0
+    code, out, _ = run_cli(
+        ["set-ceiling", "--name", "billing-api", "--max-turns", "45", "--max-budget-usd", "3.0"],
+        fake,
+        capsys,
+    )
+    assert code == 0
+    payload = json.loads(out)
+    assert payload["ceilings"] == {"max_turns": 45, "max_budget_usd": 3.0}
+    # defaults track the new ceiling when not given separately.
+    assert payload["defaults"]["max_turns"] == 45
+    assert payload["defaults"]["max_budget_usd"] == 3.0
+
+
+def test_set_ceiling_unknown_name_hints(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    code, _, err = run_cli(["set-ceiling", "--name", "nope", "--max-turns", "9"], fake, capsys)
+    assert code == 2
+    payload = json.loads(err)
+    assert payload["error"] == "RegistryError" and "billing-api" in payload["known_names"]
+
+
+def test_set_ceiling_rejects_negative(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    code, _, err = run_cli(
+        ["set-ceiling", "--name", "billing-api", "--max-budget-usd", "-1"], fake, capsys
+    )
+    assert code == 2
+    assert json.loads(err)["error"] == "RegistryError"
 
 
 def _last_task(fake):

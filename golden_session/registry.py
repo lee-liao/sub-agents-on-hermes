@@ -30,6 +30,26 @@ _CLAMPED_KEYS = ("max_turns", "max_budget_usd", "max_continues")
 _DEFAULT_CONTINUES = 3
 
 
+def _positive_int(label: str, value: Any) -> int:
+    try:
+        iv = int(value)
+    except (TypeError, ValueError):
+        raise RegistryError(f"{label} must be a positive integer, got {value!r}")
+    if iv <= 0:
+        raise RegistryError(f"{label} must be > 0, got {iv}")
+    return iv
+
+
+def _positive_float(label: str, value: Any) -> float:
+    try:
+        fv = float(value)
+    except (TypeError, ValueError):
+        raise RegistryError(f"{label} must be a positive number, got {value!r}")
+    if fv <= 0:
+        raise RegistryError(f"{label} must be > 0, got {fv}")
+    return fv
+
+
 @dataclass
 class RegistryEntry:
     name: str
@@ -152,6 +172,81 @@ class Registry:
             )
         del data[name]
         self._save_raw(data)
+
+    def update(
+        self,
+        name: str,
+        *,
+        max_turns: Optional[int] = None,
+        max_budget_usd: Optional[float] = None,
+        default_turns: Optional[int] = None,
+        default_budget: Optional[float] = None,
+    ) -> RegistryEntry:
+        """Change a primed session's ceilings/defaults without re-priming (#3).
+
+        Post-prime, the only previous way to raise a stuck ceiling was a hand-edit
+        of registry.json (unvalidated, non-atomic) or destroying the GOLD via
+        remove + re-prime (loses the golden_id and its accumulated context). This
+        is the first-class, guarded mutator: it validates inputs, keeps
+        ``ceilings`` and ``defaults`` consistent (defaults track the new ceiling
+        unless given explicitly, and are clamped down so a default can never
+        exceed its ceiling), and publishes atomically via the same temp-file +
+        ``os.replace`` path as every other write (preserving file ownership).
+
+        Ceilings are read at run launch, not mid-run, so a change here only
+        affects **subsequent** runs — an in-flight run keeps the cap it started
+        with.
+        """
+        if (
+            max_turns is None
+            and max_budget_usd is None
+            and default_turns is None
+            and default_budget is None
+        ):
+            raise RegistryError(
+                "set-ceiling requires at least one of --max-turns / --max-budget-usd "
+                "/ --default-turns / --default-budget"
+            )
+        data = self._load_raw()
+        if name not in data:
+            raise RegistryError(
+                f"unknown session name {name!r}", known_names=sorted(data.keys())
+            )
+        raw = data[name]
+        ceilings = dict(raw.get("ceilings", {}))
+        defaults = dict(raw.get("defaults", {}))
+
+        if max_turns is not None:
+            ceilings["max_turns"] = _positive_int("max_turns", max_turns)
+            defaults["max_turns"] = (
+                _positive_int("default_turns", default_turns)
+                if default_turns is not None
+                else ceilings["max_turns"]
+            )
+        elif default_turns is not None:
+            defaults["max_turns"] = _positive_int("default_turns", default_turns)
+
+        if max_budget_usd is not None:
+            ceilings["max_budget_usd"] = _positive_float("max_budget_usd", max_budget_usd)
+            defaults["max_budget_usd"] = (
+                _positive_float("default_budget", default_budget)
+                if default_budget is not None
+                else ceilings["max_budget_usd"]
+            )
+        elif default_budget is not None:
+            defaults["max_budget_usd"] = _positive_float("default_budget", default_budget)
+
+        # Keep the invariant "a default never exceeds its ceiling" — same clamp
+        # philosophy the run path uses (clamp, don't forbid).
+        for key in ("max_turns", "max_budget_usd"):
+            if defaults.get(key) is not None and ceilings.get(key) is not None:
+                defaults[key] = min(type(ceilings[key])(defaults[key]), ceilings[key])
+
+        raw["ceilings"] = ceilings
+        raw["defaults"] = defaults
+        data[name] = raw
+        self._save_raw(data)
+        return self.get(name)
 
     # --- resolution + clamp (the F11 core) -------------------------------
 

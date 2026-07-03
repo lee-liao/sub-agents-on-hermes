@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import os
 import re
+import time
+import uuid
 from typing import Iterable, Optional
 
 from .errors import (
@@ -163,6 +165,8 @@ class GoldenSession:
             max_budget_usd=max_budget_usd,
             model=model,
         )
+        # #2 — default to <workspace>/runs/<ts>-<uid> so GS_RUN_DIR is always set.
+        run_dir = self.resolve_run_dir(run_dir)
         out = self._run(args, self.workspace, env=self._run_env(run_dir))
         result = self._parse(out)
         # A fork must yield a fresh id distinct from GOLD; otherwise the resume
@@ -220,7 +224,8 @@ class GoldenSession:
             model=model,
         )
 
-        env = self._run_env(run_dir)
+        # #2 — default to <workspace>/runs/<ts>-<uid> so GS_RUN_DIR is always set.
+        env = self._run_env(self.resolve_run_dir(run_dir))
 
         if fork:
             # Branch: writes a new distinct file -> no single-writer lock needed.
@@ -281,12 +286,34 @@ class GoldenSession:
 
     # --- internals -------------------------------------------------------
 
+    def _default_run_dir(self) -> str:
+        """Per-workspace default output dir when a caller passes no run_dir (#2).
+
+        ``<workspace>/runs/<timestamp>-<uid>``. Colocated *inside the workspace
+        tree* so the artifact inherits the same ``.mcp.json`` / trust / CLAUDE.md
+        perimeter the fork ran under (a central dir or ``/tmp`` orphans it, and
+        ``/tmp`` vanishes on container recreation). The ``<uid>`` suffix makes the
+        path unique even for two runs launched in the same second, so concurrent
+        or rapid runs never collide. Add ``runs/`` to the workspace ``.gitignore``.
+        """
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        return os.path.join(self.workspace, "runs", f"{stamp}-{uuid.uuid4().hex[:8]}")
+
+    def resolve_run_dir(self, run_dir: Optional[str]) -> str:
+        """Resolve the effective task run-dir: the caller's override if given,
+        else the per-workspace default. Always returns a concrete absolute path so
+        ``GS_RUN_DIR`` is set on **every** run — no silent-empty footgun where a
+        confine-writes hook blocks all writes because the var is unset (#2)."""
+        return os.path.abspath(run_dir) if run_dir else self._default_run_dir()
+
     def _run_env(self, run_dir: Optional[str]) -> Optional[dict[str, str]]:
-        """Build the per-call env overlay for an optional task run-dir (F12).
+        """Build the per-call env overlay for a task run-dir (F12).
 
         Creates the directory (so the agent and the confine-writes hook agree it
-        exists) and exports its absolute path as ``GS_RUN_DIR``. Returns ``None``
-        when no run_dir is requested, leaving the subprocess env untouched.
+        exists) and exports its absolute path as ``GS_RUN_DIR``. Callers route
+        ``run_dir`` through :meth:`resolve_run_dir` first, so in normal use this
+        always receives a concrete path; the ``None`` guard is kept for defensive
+        direct calls.
         """
         if not run_dir:
             return None
