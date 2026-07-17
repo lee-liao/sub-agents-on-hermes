@@ -48,13 +48,15 @@ class FakeClaude:
     projects_dir: str
     calls: list[list[str]] = field(default_factory=list)
     envs: list[dict | None] = field(default_factory=list)   # env overlay per call (F12)
+    prompts: list[str | None] = field(default_factory=list)  # stdin prompt per call
     fail_mode: str | None = None          # None | "error" -> every run reports is_error
     cost_per_call: float = 0.01
     _counter: int = 0
 
-    def __call__(self, args, cwd, env=None) -> RunOutput:
+    def __call__(self, args, cwd, env=None, *, prompt=None) -> RunOutput:
         self.calls.append(list(args))
         self.envs.append(dict(env) if env is not None else None)
+        self.prompts.append(prompt)
         flags = _parse_flags(args)
         proj = _project_dir(self.projects_dir, cwd)
         os.makedirs(proj, exist_ok=True)

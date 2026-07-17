@@ -36,7 +36,7 @@ ClaudeRunner = Callable[..., RunOutput]
 
 
 def default_runner(
-    args: Sequence[str], cwd: str, env: Optional[Mapping[str, str]] = None
+    args: Sequence[str], cwd: str, env: Optional[Mapping[str, str]] = None, *, prompt: Optional[str] = None
 ) -> RunOutput:
     """Spawn the real `claude` CLI as a blocking subprocess.
 
@@ -47,13 +47,46 @@ def default_runner(
       racing on a shared, mutated environment.
     - ``stdin=DEVNULL`` silences the harmless "no stdin data received in 3s"
       warning (doc 02 gotcha 8).
+    - On Windows, native Python subprocesses may not inherit the git-bash PATH
+      that contains the npm-installed `claude`. We inject the npm prefix dir if
+      `CLAUDE_BIN` is not absolute and not found on the inherited PATH.
+    - ``prompt`` is passed via stdin when supplied. The Windows `.cmd` shim that
+      npm installs truncates multi-line arguments at the first newline, so long
+      task templates must be streamed instead of passed as the [prompt]
+      positional argument.
     """
+    claude_bin = args[0] if args else "claude"
+    env = dict(env) if env else {}
+
+    # Resolve the claude executable on Windows if needed.
+    if not os.path.isabs(claude_bin) and shutil.which(claude_bin) is None:
+        npm_prefix = os.environ.get("CLAUDE_NPM_PREFIX")
+        if not npm_prefix:
+            # Fallback: infer from known npm locations or PATH-like env vars.
+            for candidate in (
+                os.environ.get("npm_config_prefix"),
+                os.path.expanduser("~\\AppData\\Roaming\\npm"),
+                os.path.join(os.path.dirname(os.environ.get("APPDATA", "")), "Roaming", "npm"),
+            ):
+                if candidate and os.path.isdir(candidate):
+                    possible = os.path.join(candidate, "claude.cmd")
+                    if os.path.exists(possible):
+                        npm_prefix = candidate
+                        break
+                    possible = os.path.join(candidate, "claude.exe")
+                    if os.path.exists(possible):
+                        npm_prefix = candidate
+                        break
+        if npm_prefix:
+            env["PATH"] = os.pathsep.join([npm_prefix, os.environ.get("PATH", "")])
+
     try:
         proc = subprocess.run(
             list(args),
+            input=prompt if prompt is not None else None,
             cwd=cwd,
-            env=({**os.environ, **env} if env else None),
-            stdin=subprocess.DEVNULL,
+            env={**os.environ, **env},
+            stdin=None if prompt is not None else subprocess.DEVNULL,
             capture_output=True,
             text=True,
             check=False,

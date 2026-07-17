@@ -35,6 +35,11 @@ from .runner import ClaudeRunner, RunOutput, default_runner
 DEFAULT_PROJECTS_DIR = os.path.join(os.path.expanduser("~"), ".claude", "projects")
 
 
+def _resolve_claude_bin(claude_bin: str) -> str:
+    """Allow overriding the claude executable via CLAUDE_BIN env var."""
+    return os.environ.get("CLAUDE_BIN") or claude_bin
+
+
 class GoldenSession:
     """Wraps one workspace's GOLD session and its forked tasks.
 
@@ -81,7 +86,7 @@ class GoldenSession:
         self.max_continues = int(max_continues)
         self.allowed_tools = list(allowed_tools) if allowed_tools else []
         self.model = model
-        self.claude_bin = claude_bin
+        self.claude_bin = _resolve_claude_bin(claude_bin)
         self._run = runner
         # Resolve transcript root: explicit arg > env (container $HOME differs,
         # doc 05) > ~/.claude/projects.
@@ -102,11 +107,11 @@ class GoldenSession:
         """Encode an absolute workspace path the way Claude Code names its dir.
 
         Doc 02: the directory under ``~/.claude/projects`` is the workspace path
-        with ``/`` replaced by ``-`` (e.g. ``/tmp/ws-test`` -> ``-tmp-ws-test``).
-        We also fold the Windows drive ``:`` and back-slashes so the encoding is
-        stable on a dev box; on the Linux container only ``/`` is relevant.
+        with path separators, drive colons, ``.`` and ``_`` all replaced by
+        ``-`` (the CLI dashes every non-alphanumeric character), so we fold the
+        same set for a stable cross-platform match.
         """
-        return re.sub(r"[\\/:.]", "-", os.path.abspath(path))
+        return re.sub(r"[\\/:._]", "-", os.path.abspath(path))
 
     @property
     def project_dir(self) -> str:
@@ -122,6 +127,9 @@ class GoldenSession:
 
         Double-prime guard: if the GOLD transcript already exists, refuse — GOLD
         is write-once and re-priming would silently pollute the shared template.
+
+        ``golden_id`` must be a valid, previously unused UUID — the CLI rejects
+        ``--session-id`` values that are not UUIDs.
         """
         if os.path.exists(self._transcript_path(self.golden_id)):
             raise DoublePrimeError(
@@ -131,8 +139,18 @@ class GoldenSession:
         args = self._build_args(context, session_id=self.golden_id)
         # Serialize in case two processes try to prime the same id concurrently.
         with session_lock(self.golden_id, self.lock_dir):
-            out = self._run(args, self.workspace)
-        return self._parse(out)
+            out = self._run(args, self.workspace, prompt=context)
+        result = self._parse(out)
+        # F9-style loudness: everything downstream (double-prime guard, forks,
+        # cleanup) keys off golden_id, so a CLI that minted its own id would
+        # silently orphan GOLD. Refuse instead.
+        if result.session_id != self.golden_id:
+            raise SessionNotFoundError(
+                f"prime returned session id {result.session_id!r} instead of the "
+                f"requested GOLD id {self.golden_id!r}; is golden_id a valid "
+                "unused UUID?"
+            )
+        return result
 
     # --- F2/F3: fork a task ----------------------------------------------
 
@@ -167,7 +185,7 @@ class GoldenSession:
         )
         # #2 — default to <workspace>/runs/<ts>-<uid> so GS_RUN_DIR is always set.
         run_dir = self.resolve_run_dir(run_dir)
-        out = self._run(args, self.workspace, env=self._run_env(run_dir))
+        out = self._run(args, self.workspace, env=self._run_env(run_dir), prompt=prompt)
         result = self._parse(out)
         # A fork must yield a fresh id distinct from GOLD; otherwise the resume
         # silently failed to branch.
@@ -229,7 +247,7 @@ class GoldenSession:
 
         if fork:
             # Branch: writes a new distinct file -> no single-writer lock needed.
-            out = self._run(args, self.workspace, env=env)
+            out = self._run(args, self.workspace, env=env, prompt=prompt)
             result = self._parse(out)
             if not result.session_id or result.session_id == session_id:
                 raise SessionNotFoundError(
@@ -242,7 +260,7 @@ class GoldenSession:
 
         # Append (recover): single-writer lock on the sid (F8).
         with session_lock(session_id, self.lock_dir):
-            out = self._run(args, self.workspace, env=env)
+            out = self._run(args, self.workspace, env=env, prompt=prompt)
             result = self._parse(out)
             # F9 — loud failure on session-not-found. A wrong-cwd resume silently
             # starts a FRESH session and reports success; assert id-equality.
@@ -333,8 +351,14 @@ class GoldenSession:
         max_budget_usd: Optional[float] = None,
         model: Optional[str] = None,
     ) -> list[str]:
-        """Build the `claude -p` argv. Per-call caps are clamped to constructor caps."""
-        args = [self.claude_bin, "-p", prompt, "--output-format", "json"]
+        """Build the `claude -p` argv. Per-call caps are clamped to constructor caps.
+
+        The prompt is deliberately NOT placed in argv: the runner streams it via
+        stdin, because the Windows `.cmd` shim truncates multi-line arguments at
+        the first newline (see runner.py). The ``prompt`` parameter stays in the
+        signature so call sites read naturally.
+        """
+        args = [self.claude_bin, "-p", "--output-format", "json"]
         if session_id:
             args += ["--session-id", session_id]
         if resume:

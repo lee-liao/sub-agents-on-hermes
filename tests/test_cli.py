@@ -200,13 +200,8 @@ def test_set_ceiling_rejects_negative(fake, capsys, workspace, registry_path):
 
 
 def _last_task(fake):
-    """The task string the runner received (the arg after --task or -p)."""
-    call = fake.calls[-1]
-    for flag in ("--task", "-p", "--print"):
-        if flag in call:
-            return call[call.index(flag) + 1]
-    # GoldenSession passes the prompt positionally at the end; fall back to it.
-    return call[-1]
+    """The task string the runner received (streamed via stdin, not argv)."""
+    return fake.prompts[-1]
 
 
 def test_run_task_template_resolves_against_cwd_and_substitutes(
