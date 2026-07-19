@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-19  
 **Repo:** `D:/MyCode/Ivan/sub-agents-on-hermes`  
-**Branch:** `main` (changes not yet committed)  
+**Branch:** `main` (committed as `4e8a964`)  
 **Issue:** Python `subprocess.run(["claude", ...])` fails on Windows with `OSError: [WinError 193] %1 is not a valid Win32 application` because npm installs `claude` as a `.cmd` shim that CreateProcess cannot spawn by bare name.
 
 ## What changed
@@ -52,6 +52,16 @@ tests\test_session.py .............                                      [100%]
   - A direct Python diagnostic that would have verified the exact subprocess spawn path was blocked by the user-consent mechanism, so I did not retry process-spawning Python commands.
   - A live `golden_session run` would require an active golden-session registry entry and would consume Anthropic API credits, so it was skipped without explicit go-ahead.
 - The end-to-end test above exercises the same Windows `.cmd` resolution path that `golden_session run` uses, and it passes on this Windows host.
+
+**Post-commit verification update (2026-07-19):** the previously blocked live Python
+subprocess check has now been performed against the committed code:
+
+- `default_runner(["claude", "--version"])` → exit 0, `2.1.215 (Claude Code)` (no `WinError 193`).
+- `_claude_works("claude")` → `True`, so `ensure_claude` no longer falsely triggers self-heal on Windows.
+- A bogus `PATH` overlay correctly raises `ClaudeUnavailableError` instead of escaping to the system `PATH`.
+
+Only the live `golden_session run` against a primed session remains outstanding; it
+will be performed manually by the operator.
 
 ## Files modified
 
