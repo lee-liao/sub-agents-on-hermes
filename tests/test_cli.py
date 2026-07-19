@@ -291,3 +291,126 @@ def test_continue_then_list_and_cleanup(fake, capsys, workspace, registry_path):
 
     code, out, _ = run_cli(["cleanup", "--name", "billing-api"], fake, capsys)
     assert code == 0
+
+
+# --- orchestrator id args: --case-id / --work-item-id / --pipeline-id ------
+
+
+def test_run_case_id_creates_stable_run_dir(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    code, out, _ = run_cli(
+        ["run", "--name", "billing-api", "--task", "build", "--case-id", "case-238"],
+        fake,
+        capsys,
+    )
+    assert code == 0
+    payload = json.loads(out)
+    expected = os.path.join(workspace, "runs", "case-238")
+    assert payload["run_dir"] == expected
+    assert payload["is_error"] is False
+    assert os.path.isdir(expected)
+    assert fake.envs[-1]["GS_RUN_DIR"] == expected
+
+
+def test_run_work_item_and_pipeline_ids_map_like_case_id(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    _, out, _ = run_cli(
+        ["run", "--name", "billing-api", "--task", "x", "--work-item-id", "238"],
+        fake,
+        capsys,
+    )
+    assert json.loads(out)["run_dir"] == os.path.join(workspace, "runs", "238")
+    _, out, _ = run_cli(
+        ["run", "--name", "billing-api", "--task", "x", "--pipeline-id", "pipe-7"],
+        fake,
+        capsys,
+    )
+    assert json.loads(out)["run_dir"] == os.path.join(workspace, "runs", "pipe-7")
+
+
+def test_run_case_id_is_sanitized(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    code, out, _ = run_cli(
+        ["run", "--name", "billing-api", "--task", "x", "--case-id", "case 238/../x"],
+        fake,
+        capsys,
+    )
+    assert code == 0
+    run_dir = json.loads(out)["run_dir"]
+    assert run_dir.startswith(os.path.join(workspace, "runs") + os.sep)
+    assert "/" not in os.path.basename(run_dir) and " " not in os.path.basename(run_dir)
+
+
+def test_run_existing_case_dir_requires_continue(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    run_cli(["run", "--name", "billing-api", "--task", "x", "--case-id", "case-238"], fake, capsys)
+    code, _, err = run_cli(
+        ["run", "--name", "billing-api", "--task", "x", "--case-id", "case-238"],
+        fake,
+        capsys,
+    )
+    assert code == 2
+    assert "--continue" in json.loads(err)["message"]
+
+
+def test_run_continue_reuses_existing_case_dir(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    _, out1, _ = run_cli(
+        ["run", "--name", "billing-api", "--task", "x", "--case-id", "case-238"], fake, capsys
+    )
+    code, out2, _ = run_cli(
+        ["run", "--name", "billing-api", "--task", "retry", "--case-id", "case-238", "--continue"],
+        fake,
+        capsys,
+    )
+    assert code == 0
+    assert json.loads(out2)["run_dir"] == json.loads(out1)["run_dir"]
+
+
+def test_run_continue_without_id_is_rejected(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    code, _, err = run_cli(
+        ["run", "--name", "billing-api", "--task", "x", "--continue"], fake, capsys
+    )
+    assert code == 2
+    assert "--continue" in json.loads(err)["message"]
+
+
+def test_run_continue_missing_dir_is_rejected(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    code, _, err = run_cli(
+        ["run", "--name", "billing-api", "--task", "x", "--case-id", "ghost", "--continue"],
+        fake,
+        capsys,
+    )
+    assert code == 2
+    assert "does not exist" in json.loads(err)["message"]
+
+
+def test_run_rejects_multiple_id_args(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    code, _, err = run_cli(
+        ["run", "--name", "billing-api", "--task", "x", "--case-id", "a", "--work-item-id", "b"],
+        fake,
+        capsys,
+    )
+    assert code == 2
+    assert "at most one" in json.loads(err)["message"]
+
+
+def test_continue_subcommand_accepts_case_id(fake, capsys, workspace, registry_path):
+    prime(fake, capsys, workspace)
+    _, out, _ = run_cli(
+        ["run", "--name", "billing-api", "--task", "x", "--case-id", "case-238"], fake, capsys
+    )
+    sid = json.loads(out)["session_id"]
+    code, out, _ = run_cli(
+        ["continue", "--name", "billing-api", "--session-id", sid, "--task", "fix",
+         "--case-id", "case-238"],
+        fake,
+        capsys,
+    )
+    assert code == 0
+    payload = json.loads(out)
+    assert payload["run_dir"] == os.path.join(workspace, "runs", "case-238")
+    assert payload["session_id"] == sid

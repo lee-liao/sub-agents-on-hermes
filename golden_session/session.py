@@ -40,6 +40,22 @@ def _resolve_claude_bin(claude_bin: str) -> str:
     return os.environ.get("CLAUDE_BIN") or claude_bin
 
 
+_CASE_ID_UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def sanitize_case_id(case_id: str) -> str:
+    """Sanitize a case/work-item/pipeline id for filesystem use.
+
+    Non ``[A-Za-z0-9._-]`` characters collapse to a single ``-``; leading and
+    trailing separators are stripped so the result can never be ``.``/``..`` or
+    hide as a dotfile. An id with no safe characters at all is refused loudly.
+    """
+    cleaned = _CASE_ID_UNSAFE.sub("-", case_id.strip()).strip("-.")
+    if not cleaned:
+        raise WorkspaceError(f"case id {case_id!r} has no filesystem-safe characters")
+    return cleaned
+
+
 class GoldenSession:
     """Wraps one workspace's GOLD session and its forked tasks.
 
@@ -317,6 +333,15 @@ class GoldenSession:
         stamp = time.strftime("%Y%m%d-%H%M%S")
         return os.path.join(self.workspace, "runs", f"{stamp}-{uuid.uuid4().hex[:8]}")
 
+    def run_dir_for_id(self, case_id: str) -> str:
+        """Stable per-case run dir: ``<workspace>/runs/<sanitized-id>``.
+
+        This is the orchestrator contract (--case-id / --work-item-id /
+        --pipeline-id): every node of a workflow that shares the id shares the
+        directory, so artifacts flow between stages via the filesystem.
+        """
+        return os.path.join(self.workspace, "runs", sanitize_case_id(case_id))
+
     def resolve_run_dir(self, run_dir: Optional[str]) -> str:
         """Resolve the effective task run-dir: the caller's override if given,
         else the per-workspace default. Always returns a concrete absolute path so
@@ -396,9 +421,18 @@ class GoldenSession:
                 f"{(out.stderr or '').strip()[:500]}"
             )
         try:
-            payload = json.loads(text)
+            # Claude (especially on --resume/--continue) may append usage metadata after
+            # the result object. raw_decode parses the first complete JSON object and
+            # ignores the trailing noise.
+            payload, _ = json.JSONDecoder().raw_decode(text)
         except json.JSONDecodeError:
-            # Some CLI versions emit log lines before the JSON; take the last line.
-            last = text.splitlines()[-1]
-            payload = json.loads(last)
+            # Some CLI versions emit log lines before the JSON; fall back to the last line.
+            try:
+                last = text.splitlines()[-1]
+                payload = json.loads(last)
+            except json.JSONDecodeError as exc:
+                raise SessionNotFoundError(
+                    f"claude stdout is not valid JSON (exit={out.returncode}); "
+                    f"first 500 chars: {text[:500]}"
+                ) from exc
         return TaskResult.from_cli_json(payload)

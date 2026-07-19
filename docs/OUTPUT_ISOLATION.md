@@ -127,3 +127,24 @@ isolation works with zero engine support by exporting `GS_RUN_DIR` in the shell
 that calls `golden_session` — the value inherits through `default_runner` into
 `claude` and on to the hook. The flag just removes the "operator forgot to
 export it" footgun.
+
+## Stable case run dirs (orchestrator contract)
+
+The Power BI workflow orchestrator shares one `RUN_DIR` across every node of a
+workflow. Instead of passing `--run-dir` manually, callers pass an id and the
+CLI derives the directory deterministically:
+
+```bash
+golden_session run --name implementation --task-template implementation-task.md \
+  --case-id case-238            # GS_RUN_DIR = <workspace>/runs/case-238
+```
+
+- `--case-id`, `--work-item-id`, and `--pipeline-id` all map to
+  `<workspace>/runs/<sanitized-id>`; they are mutually exclusive with each
+  other and with `--run-dir`.
+- Ids are sanitized for filesystem safety (`[A-Za-z0-9._-]` kept, the rest
+  collapse to `-`; `.`/`..` are impossible).
+- A fresh `run` refuses an id whose directory already exists — pass
+  `--continue` to reuse it (multi-stage workflows, orchestrator retries).
+  `--continue` in turn refuses a directory that does not exist yet.
+- The JSON result always reports the resolved `run_dir`.

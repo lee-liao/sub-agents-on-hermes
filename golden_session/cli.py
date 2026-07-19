@@ -7,6 +7,8 @@ caller only ever supplies a human-readable name (F11 / Decision A2).
     golden_session prime   --name N --cwd PATH --context-file F   # once, writes registry
     golden_session run     --name N --task "..."                  # fork a task (F2)
     golden_session run     --name N --task-template T.md --param WORK_ITEM_ID=238  # fork from a template
+    golden_session run     --name N --task "..." --case-id case-238               # stable run dir
+    golden_session run     --name N --task "..." --case-id case-238 --continue    # reuse that dir
     golden_session continue --name N --session-id SID --task "..."  # recover (F4) [direct/automation]
     golden_session list                                          # discovery (F11)
     golden_session cleanup --name N --keep SID                   # manual janitor
@@ -124,7 +126,7 @@ def _cmd_run(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner) -
     gs = _session(resolved, runner)
     # #2 — resolve here (default when omitted) so the JSON reports the concrete
     # dir a caller/IM recap can `ls`, and the fork receives the same path.
-    run_dir = gs.resolve_run_dir(ns.run_dir)
+    run_dir = gs.resolve_run_dir(_case_run_dir(ns, gs, strict=True))
     result = gs.run_task(resolved_task(ns, resolved.cwd), model=resolved.model, run_dir=run_dir)
     _emit(
         {
@@ -141,7 +143,9 @@ def _cmd_run(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner) -
 def _cmd_continue(ns: argparse.Namespace, registry: Registry, runner: ClaudeRunner) -> int:
     resolved = registry.resolve(ns.name, _overrides(ns))
     gs = _session(resolved, runner)
-    run_dir = gs.resolve_run_dir(ns.run_dir)   # #2 — default when omitted
+    # #2 — default when omitted. Recovery may target an existing case dir, so
+    # no fresh-run existence gate here (strict=False).
+    run_dir = gs.resolve_run_dir(_case_run_dir(ns, gs, strict=False))
     result = gs.continue_task(
         ns.session_id,
         resolved_task(ns, resolved.cwd),
@@ -307,6 +311,50 @@ def _parse_params(params: Sequence[str]) -> dict:
     return out
 
 
+def _case_run_dir(ns: argparse.Namespace, gs: GoldenSession, *, strict: bool) -> Optional[str]:
+    """Resolve the run dir from --case-id / --work-item-id / --pipeline-id / --run-dir.
+
+    Orchestrator contract: an id maps to the stable ``<workspace>/runs/<id>``
+    directory shared by every node of a workflow. With ``strict`` (the ``run``
+    subcommand), a fresh run refuses an already-existing id-derived dir unless
+    ``--continue`` is passed, and ``--continue`` requires the dir to exist —
+    so accidental double-starts and typo'd resumes both fail loudly.
+    Returns None when nothing was passed (caller falls back to the default).
+    """
+    given = [
+        (flag, value)
+        for flag, value in (
+            ("--case-id", getattr(ns, "case_id", None)),
+            ("--work-item-id", getattr(ns, "work_item_id", None)),
+            ("--pipeline-id", getattr(ns, "pipeline_id", None)),
+            ("--run-dir", getattr(ns, "run_dir", None)),
+        )
+        if value
+    ]
+    if len(given) > 1:
+        flags = ", ".join(flag for flag, _ in given)
+        raise RegistryError(f"pass at most one of --case-id/--work-item-id/--pipeline-id/--run-dir (got {flags})")
+    continuing = bool(getattr(ns, "continue_run", False))
+    if not given:
+        if continuing:
+            raise RegistryError(
+                "--continue needs a directory to reuse: pass --case-id, "
+                "--work-item-id, --pipeline-id, or --run-dir"
+            )
+        return None
+    flag, value = given[0]
+    run_dir = os.path.abspath(value) if flag == "--run-dir" else gs.run_dir_for_id(value)
+    if strict:
+        exists = os.path.isdir(run_dir)
+        if continuing and not exists:
+            raise RegistryError(f"--continue: run dir does not exist: {run_dir}")
+        if not continuing and flag != "--run-dir" and exists:
+            raise RegistryError(
+                f"run dir already exists: {run_dir}; pass --continue to reuse it"
+            )
+    return run_dir
+
+
 def _overrides(ns: argparse.Namespace) -> dict:
     return {
         "max_budget_usd": getattr(ns, "budget", None),
@@ -372,6 +420,13 @@ def _build_parser() -> argparse.ArgumentParser:
     sr.add_argument("--name", required=True)
     _add_task_args(sr)
     _add_override_args(sr)
+    sr.add_argument(
+        "--continue",
+        dest="continue_run",
+        action="store_true",
+        help="Reuse the existing run dir of --case-id/--work-item-id/--pipeline-id/"
+        "--run-dir (orchestrator retries and multi-stage workflows).",
+    )
     sr.set_defaults(func=_cmd_run)
 
     sc = sub.add_parser("continue", help="Recover/branch an existing task (F4); direct/automation only.")
@@ -460,6 +515,12 @@ def _add_override_args(sp: argparse.ArgumentParser) -> None:
         help="Per-task directory (F12). Created and exported as GS_RUN_DIR so a "
         "cwd-level confine-writes hook can enforce output isolation.",
     )
+    # Orchestrator id args — each maps to the stable <workspace>/runs/<id> dir
+    # (sanitized for filesystem use). Mutually exclusive with each other and
+    # with --run-dir; validated in _case_run_dir for structured errors.
+    sp.add_argument("--case-id", default=None, help="Case id; run dir = <workspace>/runs/<id>.")
+    sp.add_argument("--work-item-id", default=None, help="ADO work-item id; same mapping as --case-id.")
+    sp.add_argument("--pipeline-id", default=None, help="Pipeline id; same mapping as --case-id.")
 
 
 if __name__ == "__main__":  # python -m golden_session.cli
