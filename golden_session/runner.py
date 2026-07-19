@@ -35,6 +35,20 @@ class RunOutput:
 ClaudeRunner = Callable[..., RunOutput]
 
 
+def _resolve_cmd(executable: str, path: Optional[str] = None) -> str:
+    """Map a bare command name to its on-disk file on Windows.
+
+    npm installs CLIs (`claude`, `npm`) as `.cmd` shims, and CreateProcess
+    cannot spawn a `.cmd` file given only its bare name — it fails with
+    WinError 193 ("%1 is not a valid Win32 application") or FileNotFoundError.
+    `shutil.which` honors PATHEXT, so it resolves `claude` -> `claude.cmd`;
+    the absolute path *is* spawnable. No-op on POSIX or for absolute paths.
+    """
+    if os.name != "nt" or os.path.isabs(executable):
+        return executable
+    return shutil.which(executable, path=path) or executable
+
+
 def default_runner(
     args: Sequence[str], cwd: str, env: Optional[Mapping[str, str]] = None, *, prompt: Optional[str] = None
 ) -> RunOutput:
@@ -49,7 +63,9 @@ def default_runner(
       warning (doc 02 gotcha 8).
     - On Windows, native Python subprocesses may not inherit the git-bash PATH
       that contains the npm-installed `claude`. We inject the npm prefix dir if
-      `CLAUDE_BIN` is not absolute and not found on the inherited PATH.
+      `CLAUDE_BIN` is not absolute and not found on the inherited PATH, then
+      rewrite argv[0] to the resolved `.cmd`/`.exe` path — CreateProcess cannot
+      spawn a `.cmd` shim by bare name (WinError 193).
     - ``prompt`` is passed via stdin when supplied. The Windows `.cmd` shim that
       npm installs truncates multi-line arguments at the first newline, so long
       task templates must be streamed instead of passed as the [prompt]
@@ -59,7 +75,11 @@ def default_runner(
     env = dict(env) if env else {}
 
     # Resolve the claude executable on Windows if needed.
-    if not os.path.isabs(claude_bin) and shutil.which(claude_bin) is None:
+    # Honor any PATH overlay the caller supplied; the final env is the merge of
+    # os.environ and env, so the search path should reflect that same effective
+    # PATH (overlay wins if present).
+    search_path = env.get("PATH") or os.environ.get("PATH", "")
+    if not os.path.isabs(claude_bin) and shutil.which(claude_bin, path=search_path) is None:
         npm_prefix = os.environ.get("CLAUDE_NPM_PREFIX")
         if not npm_prefix:
             # Fallback: infer from known npm locations or PATH-like env vars.
@@ -78,11 +98,17 @@ def default_runner(
                         npm_prefix = candidate
                         break
         if npm_prefix:
-            env["PATH"] = os.pathsep.join([npm_prefix, os.environ.get("PATH", "")])
+            env["PATH"] = os.pathsep.join([npm_prefix, search_path])
+
+    # Rewrite argv[0] to the actual file (`claude.cmd` on Windows) so
+    # subprocess can spawn it; searches the overlay PATH when we injected one.
+    args = list(args)
+    if args:
+        args[0] = _resolve_cmd(args[0], path=env.get("PATH"))
 
     try:
         proc = subprocess.run(
-            list(args),
+            args,
             input=prompt if prompt is not None else None,
             cwd=cwd,
             env={**os.environ, **env},
@@ -113,7 +139,7 @@ def ensure_claude(claude_bin: str = "claude") -> None:
         )
     # Re-link the persisted install against the current Node runtime.
     subprocess.run(
-        ["npm", "install", "-g", "@anthropic-ai/claude-code"],
+        [_resolve_cmd("npm"), "install", "-g", "@anthropic-ai/claude-code"],
         stdin=subprocess.DEVNULL,
         check=True,
     )
@@ -124,7 +150,7 @@ def ensure_claude(claude_bin: str = "claude") -> None:
 def _claude_works(claude_bin: str) -> bool:
     try:
         proc = subprocess.run(
-            [claude_bin, "--version"],
+            [_resolve_cmd(claude_bin), "--version"],
             stdin=subprocess.DEVNULL,
             capture_output=True,
             text=True,
