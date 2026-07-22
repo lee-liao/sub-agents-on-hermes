@@ -6,8 +6,8 @@
 > deployment with different paths, different sessions, and one trap the container
 > setup structurally cannot hit.
 >
-> **Verified 2026-07-21** on `liao_@` this host — Hermes native, Claude Code
-> v2.1.217, Python 3.13.7 (Anaconda). Paths below were observed, not assumed.
+> **Verified 2026-07-21, updated 2026-07-22** on this host — Hermes native, Claude
+> Code v2.1.217, Python 3.13.7 (Anaconda). Paths below were observed, not assumed.
 
 ## TL;DR — where things actually are
 
@@ -19,7 +19,7 @@
 | GOLD workspaces (`cwd`) | `C:\Users\liao_\AppData\Local\hermes\projects\<name>\` |
 | Per-task run dirs (F12) | `<workspace>\runs\<case-id or ts-uid>\` |
 | `HERMES_HOME` | `C:\Users\liao_\AppData\Local\hermes` |
-| Hermes skills | `C:\Users\liao_\AppData\Local\hermes\skills\claude-code-gold\` |
+| Hermes skills (deployed) | `C:\Users\liao_\AppData\Local\hermes\skills\` — authored in `skills/`, deployed by `scripts/deploy-skills.ps1` (§8) |
 | `claude` CLI | `D:\Users\liao_\AppData\Roaming\npm\claude.cmd` |
 | `golden_session` on PATH | `D:\Users\liao_\AppData\Roaming\Python\Python313\Scripts\golden_session.exe` |
 
@@ -57,10 +57,10 @@ under `C:\Users\liao_\`, while Hermes' own state (`config.yaml`, `sessions/`,
 same path, so the location is a decision rather than a default. Hermes must be
 restarted to observe it; until then the default resolves to the same file.
 
-## 2. Two entry points — and they are not the same code ⚠
+## 2. Two entry points (they used to be different code ⚠)
 
-There are two ways to invoke the engine on this box, and **they resolve to
-different snapshots of the source**:
+There are two ways to invoke the engine on this box. Until 2026-07-21 they
+resolved to **different snapshots of the source**; they now agree:
 
 | Entry point | Resolves to | State |
 |---|---|---|
@@ -234,9 +234,12 @@ To re-measure after future runs, read `cache_creation_input_tokens` /
 > lets you pick the UUID), and the registry was then hand-edited to point at one
 > of them. **That path bypasses the engine's guards**: `DoublePrimeError` only
 > fires for the *same* id, and `Registry.add`'s duplicate-name refusal never runs
-> when the JSON is edited by hand. Nothing detects a one-character twin. Safe to
-> delete `…3b4c` after confirming nothing references it — but prefer generated
-> UUIDs over hand-authored ones to avoid recreating this.
+> when the JSON is edited by hand. Nothing detects a one-character twin.
+>
+> **Retired 2026-07-22** to `…3b4c.jsonl.bak-20260722` after verifying nothing
+> referenced it. `list_forks` matches `*.jsonl`, so the engine no longer sees it;
+> delete the `.bak` once you're satisfied. **Prefer generated UUIDs over
+> hand-authored ones** — `prime` mints one for you — to avoid recreating this.
 
 ## 5. Verifying the deployment
 
@@ -254,6 +257,9 @@ claude --version                      # expect 2.1.x
 
 # 4. Transcripts for a session's workspace
 python -c "from golden_session.session import GoldenSession as G; print(G.encode_cwd(r'C:\Users\liao_\AppData\Local\hermes\projects\ado-ready'))"
+
+# 5. Are the deployed skills in sync with the repo? (exits 1 on drift)
+.\scripts\deploy-skills.ps1 -Check
 ```
 
 If `golden_session list` returns `No sessions registered`, you are reading a
@@ -268,6 +274,7 @@ which `golden_session` is first on PATH, in that order.
 | Registry | `/opt/data/.golden_session/registry.json` | `C:\Users\liao_\.golden_session\registry.json` |
 | Engine install | copied to bind mount + bash shim | **pip editable → the git repo** |
 | Invocation | `bin/golden_session` (bash) | `golden_session.exe` (console script) |
+| Skill deployment | copy onto the bind mount by hand | `scripts/deploy-skills.ps1` (§8) |
 | Spawn quirks | none | `.cmd` shim, PATHEXT, stdin prompt (§3) |
 | `ANTHROPIC_BASE_URL` stripping | yes — needs `_HERMES_FORCE_` escape hatch | not applicable |
 | `terminal.home_mode` | must be `real` | `real` (config.yaml:50) |
@@ -280,47 +287,33 @@ historical context, labelled as such.
 
 ## 7. Open items
 
-- [x] ~~**Resolve the duplicate engine copy** (§2).~~ **Done 2026-07-21** —
-      re-synced rather than deleted, because skill references point at it (§2).
-- [x] ~~**Pin `GOLDEN_SESSION_REGISTRY`**.~~ **Done 2026-07-21** — set for the
-      user account to `C:\Users\liao_\.golden_session\registry.json` (the same
-      file the default already resolved to, so no cutover). **Hermes must be
-      restarted** to pick it up; until then the default applies and points at the
-      same file.
-- [x] ~~**Audit the GOLD transcripts** (F2).~~ **Done 2026-07-21** — F2 holds on
-      both sessions; see the GOLD audit in §4. Surfaced two follow-ups below.
-- [x] ~~**Delete the orphaned twin GOLD** `…3b4c` in `ado-ready`.~~ **Done
-      2026-07-22** — verified unreferenced (no fork descends from it, nothing in
-      the registry, skills, or either repo cites it), then retired to
-      `…3b4c.jsonl.bak-20260722` rather than hard-deleted, following the
-      `.claude.bak-*` precedent. The engine no longer sees it (`list_forks`
-      matches `*.jsonl` only). Delete the `.bak` after a few clean runs.
-- [x] ~~**Consider a leaner re-prime.**~~ **Measured 2026-07-22: not worth it** —
-      GOLD is ~5% of a fork's billed cache writes; see §4.
-- [x] ~~**Stop the skill docs pointing at a second engine copy.**~~ **Done
-      2026-07-22** — `windows-mcp-prime.md` now states the engine is a pip
-      editable install needing no `PYTHONPATH`, and the two
-      `windows-ai-agent-adaptation` references carry the same correction.
-- [x] ~~**`windows-ai-agent-adaptation` has no repo home.**~~ **Done 2026-07-22**
-      — vendored into `skills/windows-ai-agent-adaptation/` here (6 of its 10
-      references are `golden_session`/Claude Code material, so this repo is its
-      home by the §10 rule). A personal email address in
-      `hermes-gateway-email-163-workaround.md` was redacted, since this repo is
-      public. It deploys to `software-development\windows-ai-agent-adaptation`.
-- [x] ~~**No declared sync direction between repo and deployment.**~~ **Done
-      2026-07-22** — `scripts/deploy-skills.ps1` makes the repo the source of
-      truth and the sync one command; every `SKILL.md` carries a banner telling
-      agents not to edit the deployed copy. See §8.
-- [ ] **Restart Hermes** so it observes `GOLDEN_SESSION_REGISTRY` (set
-      2026-07-21). No urgency: the default resolves to the same file.
-- [x] ~~**Decide whether editable-install-as-production is intended** (§2).~~
-      **Decided 2026-07-21: intended, keep it.** Fast iteration and one source of
-      truth, at the cost of a live working tree — documented in §2.
-- [x] ~~Fix the stale `/opt/data/home/...` registry path in
-      [`prd/05-integration-and-deployment.md`](./prd/05-integration-and-deployment.md)
-      and `registry.py:22`.~~ **Done 2026-07-21** — both corrected to
-      `/opt/data/.golden_session/registry.json`, with a path note in doc 05 §2
-      explaining that the old path was an artifact of the `home_mode: auto` drift.
+### Open
+
+- [ ] **Restart Hermes** so it observes `GOLDEN_SESSION_REGISTRY` (set 2026-07-21).
+      No urgency — the default resolves to the same file.
+- [ ] **Delete `…3b4c.jsonl.bak-20260722`** (the retired twin GOLD, §4) once a few
+      clean runs have passed.
+- [ ] **Delete the legacy `%HERMES_HOME%\.local\{bin,lib}` engine copy** (§2) once
+      you're confident nothing invokes `golden_session.bat` by absolute path. It is
+      currently in sync, so it is harmless — just redundant.
+- [ ] **Consider wiring `deploy-skills.ps1 -Check` into a pre-commit hook.** Nothing
+      prevents an agent writing to `%HERMES_HOME%\skills\`; the check is only useful
+      if it actually runs.
+
+### Resolved
+
+| Item | Outcome |
+|---|---|
+| Duplicate engine copy (§2) | **2026-07-21** — re-synced, not deleted: skill references pointed at it. Those references were corrected on 07-22, so it is now legacy. |
+| Pin `GOLDEN_SESSION_REGISTRY` | **2026-07-21** — set for the user account to the path the default already resolved to, so there was no cutover. |
+| Audit the GOLD transcripts (F2) | **2026-07-21** — F2 holds on both sessions; see §4. |
+| Orphaned twin GOLD `…3b4c` | **2026-07-22** — verified unreferenced, retired to `.bak` (§4). |
+| Leaner re-prime? | **2026-07-22 — measured, not worth it.** GOLD is ~5% of a fork's billed cache writes (§4). |
+| Skill docs pointing at a second engine copy | **2026-07-22** — `windows-mcp-prime.md` and both `windows-ai-agent-adaptation` references now state that the editable install needs no `PYTHONPATH`. |
+| `windows-ai-agent-adaptation` had no repo home | **2026-07-22** — vendored into `skills/` here; a personal email was redacted, as this repo is public. |
+| No declared sync direction | **2026-07-22** — `scripts/deploy-skills.ps1` + a source-of-truth banner in every `SKILL.md` (§8). |
+| Editable-install-as-production? | **2026-07-21 — intended, kept.** Fast iteration and one source of truth, at the cost of a live working tree (§2). |
+| Stale `/opt/data/home/...` registry path | **2026-07-21** — corrected in doc 05 and `registry.py`; that path was the `home_mode: auto` drift, never a real location. |
 
 ## 8. Deploying skills (the sync direction)
 
