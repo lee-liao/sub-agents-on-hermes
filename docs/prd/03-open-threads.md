@@ -4,7 +4,8 @@ Follow-up work on the Hermes → Claude Code task management architecture that h
 
 > **Phase 1 status (2026-06-30): SHIPPED.** Threads #1–#7 remain open — none
 > was closed by Phase 1; they were all explicitly deferred per PRD §4. Threads
-> #8 and #9 were added after deploy surfaced two issues the pre-mortem missed.
+> #8 and #9 were added after deploy surfaced two issues the pre-mortem missed;
+> #10 records a deferred structural decision with its trigger conditions.
 > See [`04-phase1-mvp-prd.md`](./04-phase1-mvp-prd.md) Status header for the
 > per-criterion outcome.
 
@@ -106,3 +107,52 @@ The Phase 1 deploy hit a 2-hour auth blocker because Hermes silently strips `ANT
 - One-time audit script that diffs the deployment's required env vars (from `.env`, compose `environment:`, and any tool the wrapper calls) against the live `_build_provider_env_blocklist()` output. Run on every Hermes image bump.
 - Decide whether the `_HERMES_FORCE_` prefix should be set automatically for vars the operator has explicitly put in compose `environment:` (treat compose as opt-in force), or kept as an explicit per-var escape hatch (current behavior).
 - Document the pattern in `docs/HERMES_HOME_AND_OS_HOME.md` or a sibling ops doc so future maintainers don't re-derive it.
+
+## Thread 10 — Spin `claude-code-gold` out of the engine repo (DEFERRED, with trigger conditions)
+
+**Decision (2026-07-21): keep the skill colocated with the engine. Revisit only when a
+trigger below fires.**
+
+The question was whether `skills/claude-code-gold/` should become its own project,
+separate from the `golden_session` CLI. It should not, for now:
+
+- **The coupling is semantic and tight.** `SKILL.md` is a documentation projection of the
+  CLI contract — adding a flag (`--case-id`) requires the skill's instructions to change in
+  the same commit, or the agent emits commands the CLI rejects. Colocation makes that
+  atomic; a repo boundary makes it a two-PR dance with guaranteed lag.
+- **The house pattern agrees.** The sibling `powerbi-workflow-orchestrator` colocates
+  `skills/powerbi-workflow/` with its `pbi_workflow/` engine.
+- **The current boundary is already principled**, following an unnamed rule now worth
+  naming: *a skill lives in the repo whose contract it documents.* `claude-code-gold`
+  documents the `golden_session` CLI → it belongs here. `powerbi-workflow` documents the
+  orchestrator's capabilities → it belongs there.
+- **YAGNI** — a repo carries fixed overhead (CI, versioning, release, review) for what is
+  currently one markdown file plus two references and a probe script.
+
+### Trigger conditions — split when ANY of these becomes true
+
+1. **A third consumer needs the skill without the engine** (or the engine without the skill).
+2. **The skill grows its own test suite and release cadence.** Watch `scripts/` — it already
+   holds `check_windows_claude_spawn.py`, an executable with no tests, and an executable
+   with no tests is the seed of a real component.
+3. **Different owners collide in review** on skill vs engine changes.
+4. **Skills multiply over one engine** (~5+), justifying a `skills/` subtree with independent
+   versioning — note this may still be the *same* repo, just a separate release unit.
+
+### The real problem this question surfaced (fixed 2026-07-21)
+
+The instinct to split was detecting something genuine, but misdiagnosing it. The deployed
+skill at `%HERMES_HOME%\skills\claude-code-gold\` had grown to 9.5 KB, four new sections, a
+`references/` directory, and a `scripts/` probe — **none of it committed**. The repo held an
+84-line stub. Roughly 20 KB of operational knowledge existed only on one Windows box,
+unversioned and unbacked-up.
+
+A repo split would not have fixed that; it would have produced a second repo also out of
+sync with the deployment. The missing piece was a **sync direction**, not a repo boundary.
+
+- ✅ **Done:** deployed content reverse-synced into the repo (both skills).
+- ⬜ **Next:** declare the repo the source of truth and add a deploy script, so "edit the
+  deployment in place" stops being the path of least resistance. Until that exists, this
+  drift recurs.
+- ⬜ **Next:** reconcile the bidirectional `powerbi-workflow` drift (its `SKILL.md` differs
+  in both directions; the repo has a reference the deployment lacks).
