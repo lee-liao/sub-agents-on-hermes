@@ -1,0 +1,167 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.0.6 Chrome/138.0.7204.100 Electron/37.2.3 Safari/537.36" version="28.0.6">
+  <diagram name="Page-1" id="vM8gfJgmeYaEDCGTLPxl">
+    <mxGraphModel dx="2066" dy="841" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="850" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="OESCwWnAuenCPwaensPO-1" value="Discord: run on billing-api: fix the failing test  budget=1.00" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="155" y="20" width="260" height="102" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-2" value="user in allowlist?" style="rhombus;strokeWidth=2;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="198" y="172" width="173" height="173" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-3" value="⛔ rejected — guardrail 1" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="20" y="430" width="247" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-4" value="parse_message → {name, task, overrides}" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="317" y="418" width="260" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-5" value="command?" style="rhombus;strokeWidth=2;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="383" y="546" width="129" height="129" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-6" value="reply: names + cwd + args (discovery)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="24" y="748" width="260" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-7" value="reply: grammar hint" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="334" y="760" width="204" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-8" value="registry.resolve(name, overrides)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="588" y="748" width="260" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-9" value="reply: &#39;did you mean …&#39; + known_names" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="433" y="923" width="260" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-10" value="identity from code: golden_id, cwd&#xa;overrides CLAMPED DOWN to ceilings — guardrail 2" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="743" y="899" width="260" height="126" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-11" value="GoldenSession.run_task(task)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="738" y="1075" width="270" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-12" value="resolve_run_dir → mkdir, export GS_RUN_DIR (F12)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="743" y="1179" width="260" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-13" value="build argv: --resume GOLD --fork-session&#xa;--max-turns --max-budget-usd (clamped again, F5)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="743" y="1307" width="260" height="126" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-14" value="default_runner: spawn claude -p, prompt via stdin, explicit cwd (F6)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="743" y="1483" width="260" height="102" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-15" value="parse JSON → TaskResult (F3)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="743" y="1635" width="260" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-16" value="new sid ≠ golden_id?" style="rhombus;strokeWidth=2;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="773" y="1763" width="202" height="202" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-17" value="raise SessionNotFoundError — the fork did not branch (F9)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="588" y="2038" width="260" height="102" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-18" value="reply: status, terminal_reason, cost_usd, session_id, run_dir" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="898" y="2038" width="260" height="102" as="geometry" />
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-19" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-1" target="OESCwWnAuenCPwaensPO-2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-20" value="no" style="curved=1;startArrow=none;endArrow=block;exitX=0;exitY=0.94;entryX=0.5;entryY=0.01;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-2" target="OESCwWnAuenCPwaensPO-3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="144" y="382" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-21" value="yes" style="curved=1;startArrow=none;endArrow=block;exitX=1;exitY=0.88;entryX=0.5;entryY=0.01;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-2" target="OESCwWnAuenCPwaensPO-4">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="447" y="382" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-22" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1.01;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-4" target="OESCwWnAuenCPwaensPO-5">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-23" value="list" style="curved=1;startArrow=none;endArrow=block;exitX=0;exitY=0.68;entryX=0.5;entryY=0.01;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-5" target="OESCwWnAuenCPwaensPO-6">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="154" y="712" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-24" value="unknown" style="curved=1;startArrow=none;endArrow=block;exitX=0.44;exitY=1;entryX=0.5;entryY=0.01;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-5" target="OESCwWnAuenCPwaensPO-7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="436" y="712" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-25" value="run" style="curved=1;startArrow=none;endArrow=block;exitX=1;exitY=0.69;entryX=0.5;entryY=0.01;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-5" target="OESCwWnAuenCPwaensPO-8">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="718" y="712" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-26" value="unknown name" style="curved=1;startArrow=none;endArrow=block;exitX=0.19;exitY=1.01;entryX=0.5;entryY=0.01;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-8" target="OESCwWnAuenCPwaensPO-9">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="563" y="863" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-27" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.81;exitY=1.01;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-8" target="OESCwWnAuenCPwaensPO-10">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="873" y="863" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-28" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0.01;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-10" target="OESCwWnAuenCPwaensPO-11">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-29" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1.01;entryX=0.5;entryY=0.01;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-11" target="OESCwWnAuenCPwaensPO-12">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-30" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1.01;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-12" target="OESCwWnAuenCPwaensPO-13">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-31" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-13" target="OESCwWnAuenCPwaensPO-14">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-32" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1;entryX=0.5;entryY=0.01;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-14" target="OESCwWnAuenCPwaensPO-15">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-33" value="" style="curved=1;startArrow=none;endArrow=block;exitX=0.5;exitY=1.01;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-15" target="OESCwWnAuenCPwaensPO-16">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-34" value="no" style="curved=1;startArrow=none;endArrow=block;exitX=0;exitY=0.94;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-16" target="OESCwWnAuenCPwaensPO-17">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="718" y="2002" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="OESCwWnAuenCPwaensPO-35" value="yes" style="curved=1;startArrow=none;endArrow=block;exitX=1;exitY=0.94;entryX=0.5;entryY=0;rounded=0;" edge="1" parent="1" source="OESCwWnAuenCPwaensPO-16" target="OESCwWnAuenCPwaensPO-18">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1028" y="2002" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

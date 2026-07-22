@@ -40,8 +40,10 @@ docker logs hermes-lee                                # container logs
 
 Read further in the [`docs/`](docs/) folder:
 
+- [`docs/prd/00-project-overview.md`](docs/prd/00-project-overview.md) — **start here**: architecture, flowcharts, guardrail catalogue, and status.
 - [`docs/DOCKER_COMPOSE_SETTINGS.md`](docs/DOCKER_COMPOSE_SETTINGS.md) — why each setting in `docker-compose.yml` matters (volumes, `HERMES_UID`/`GID` permissions, how `claude` gets its key).
 - [`docs/HERMES_DEPLOY_AND_TEST.md`](docs/HERMES_DEPLOY_AND_TEST.md) — full runbook to deploy and verify the `golden_session` engine.
 - [`docs/HERMES_HOME_AND_OS_HOME.md`](docs/HERMES_HOME_AND_OS_HOME.md) — how `HERMES_HOME` and OS `$HOME` interact (and why it matters).
+- [`docs/WINDOWS_DEPLOYMENT.md`](docs/WINDOWS_DEPLOYMENT.md) — the native-Windows Hermes deployment: real paths, why the registry is **not** under `HERMES_HOME`, and Windows-only spawn quirks.
 - [`docs/OUTPUT_ISOLATION.md`](docs/OUTPUT_ISOLATION.md) — enforced per-task output isolation (`--run-dir` / `GS_RUN_DIR` + the confine-writes hook).
 - [`docs/prd/`](docs/prd/) — product requirements, design decisions, and open threads.

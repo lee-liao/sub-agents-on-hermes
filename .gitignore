@@ -32,3 +32,6 @@ registry.json
 
 # intermediate files
 output/
+
+# draw.io autosave backups
+.$*.bkp
