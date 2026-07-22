@@ -5,6 +5,11 @@ description: Delegate a coding task to a primed Claude Code GOLD session via the
 
 # claude-code-gold — GOLD-aware delegation guide
 
+> **Source of truth: the `sub-agents-on-hermes` repo** (`skills/claude-code-gold/`). This file is
+> deployed to `%HERMES_HOME%\skills\` by `scripts/deploy-skills.ps1`. **Do not edit the
+> deployed copy** — edits there are unversioned and have been silently lost before.
+> Edit in the repo, commit, then run the script.
+
 This is the thin trigger/knowledge layer (doc 05 Decision A1, Option B). It does
 **not** orchestrate — it instructs you to delegate to the `golden_session` CLI,
 which holds the orchestration logic and enforces the GOLD invariants F1–F10 in

@@ -53,8 +53,9 @@ under `C:\Users\liao_\`, while Hermes' own state (`config.yaml`, `sessions/`,
 > `C:\Users\liao_\.golden_session\registry.json` is **ours** (F11). Grepping for
 > the filename finds both.
 
-To make the location deliberate instead of incidental, set `GOLDEN_SESSION_REGISTRY`
-(currently **unset** on this box — the path is a default, not a decision).
+`GOLDEN_SESSION_REGISTRY` is now **set** for this user account (2026-07-21) to that
+same path, so the location is a decision rather than a default. Hermes must be
+restarted to observe it; until then the default resolves to the same file.
 
 ## 2. Two entry points — and they are not the same code ⚠
 
@@ -64,13 +65,14 @@ different snapshots of the source**:
 | Entry point | Resolves to | State |
 |---|---|---|
 | `golden_session.exe` (**on PATH, wins**) | `D:\MyCode\Ivan\sub-agents-on-hermes\golden_session\` — pip **editable** install | ✅ live repo |
-| `golden_session.bat` (`%HERMES_HOME%\.local\bin\`) | `%HERMES_HOME%\.local\lib\golden_session\` — copied snapshot | ⚠️ **stale (2026-07-13)** |
+| `golden_session.bat` (`%HERMES_HOME%\.local\bin\`) | `%HERMES_HOME%\.local\lib\golden_session\` — copied snapshot | ✅ re-synced 2026-07-21 |
 
-`which -a golden_session` returns only the `.exe`, so the `.bat` appears dormant.
-But it is a live landmine: it mirrors the container's `GS_LIB` shim layout and
-would be picked up if PATH order changed or something invoked it by full path.
+`%HERMES_HOME%\.local\bin` is **not on PATH**, so the `.bat` is reachable only by
+absolute path. It was still a landmine, because it hard-codes `GS_LIB` to a copy
+that had gone stale.
 
-Measured drift of the `.bat` copy against the repo:
+Drift the copy had accumulated before the re-sync — kept as a record of how far a
+second copy can silently diverge in five weeks:
 
 | Module | Differing lines | Consequence |
 |---|---|---|
@@ -108,8 +110,10 @@ resolves to the repo. The lib copy only matters for a *different* Python without
 the editable install; keeping it in sync covers that case.
 
 Two copies of a guardrail engine still violates DRY, and "invariants in code" only
-holds if there is one copy of the code. The durable fix is to update those skill
-references to stop pointing at a second copy — tracked as an open item in §7.
+holds if there is one copy of the code. **Fixed 2026-07-22:** those skill
+references no longer instruct copying the package or setting `PYTHONPATH` — the
+editable install resolves without either. The `.local\lib` copy is now legacy and
+can be deleted once you're confident nothing invokes the `.bat` by absolute path.
 
 ## 3. Windows-specific engine behaviour
 
@@ -297,10 +301,16 @@ historical context, labelled as such.
       2026-07-22** — `windows-mcp-prime.md` now states the engine is a pip
       editable install needing no `PYTHONPATH`, and the two
       `windows-ai-agent-adaptation` references carry the same correction.
-- [ ] **`software-development/windows-ai-agent-adaptation` has no repo home.**
-      It exists only in the deployment, so the corrections above are unversioned
-      and will drift — the same failure this doc was written about. Either vendor
-      it into a repo or accept it as deployment-only, deliberately.
+- [x] ~~**`windows-ai-agent-adaptation` has no repo home.**~~ **Done 2026-07-22**
+      — vendored into `skills/windows-ai-agent-adaptation/` here (6 of its 10
+      references are `golden_session`/Claude Code material, so this repo is its
+      home by the §10 rule). A personal email address in
+      `hermes-gateway-email-163-workaround.md` was redacted, since this repo is
+      public. It deploys to `software-development\windows-ai-agent-adaptation`.
+- [x] ~~**No declared sync direction between repo and deployment.**~~ **Done
+      2026-07-22** — `scripts/deploy-skills.ps1` makes the repo the source of
+      truth and the sync one command; every `SKILL.md` carries a banner telling
+      agents not to edit the deployed copy. See §8.
 - [ ] **Restart Hermes** so it observes `GOLDEN_SESSION_REGISTRY` (set
       2026-07-21). No urgency: the default resolves to the same file.
 - [x] ~~**Decide whether editable-install-as-production is intended** (§2).~~
@@ -311,3 +321,43 @@ historical context, labelled as such.
       and `registry.py:22`.~~ **Done 2026-07-21** — both corrected to
       `/opt/data/.golden_session/registry.json`, with a path note in doc 05 §2
       explaining that the old path was an artifact of the `home_mode: auto` drift.
+
+## 8. Deploying skills (the sync direction)
+
+**The repo is the source of truth. The deployment is a copy.** Skills are authored
+in `skills/` and pushed to `%HERMES_HOME%\skills\` by one script:
+
+```powershell
+.\scripts\deploy-skills.ps1 -Check   # report drift, change nothing (exit 1 if drift)
+.\scripts\deploy-skills.ps1          # deploy repo -> deployment
+```
+
+Both repos carry the same script:
+
+| Repo | Skill | Deploys to |
+|---|---|---|
+| `sub-agents-on-hermes` | `claude-code-gold` | `skills\claude-code-gold` |
+| `sub-agents-on-hermes` | `windows-ai-agent-adaptation` | `skills\software-development\windows-ai-agent-adaptation` |
+| `powerbi-workflow-orchestrator` | `powerbi-workflow` | `skills\powerbi-workflow` |
+
+Three properties worth knowing:
+
+- **One-way by design.** The script never copies deployment → repo. If the
+  deployed copy has edits worth keeping, `-Check` reports them as
+  `DEPLOYMENT ONLY`; reverse-sync by hand and commit *before* deploying, or they
+  are overwritten.
+- **It never deletes.** Deployment-only files are reported, never removed — they
+  may be content that belongs in the repo and hasn't been rescued yet.
+- **Content-hash comparison**, so Git's CRLF normalisation doesn't read as drift.
+
+`-Check` exits 1 on drift, so it works as a pre-commit hook or CI guard.
+
+### Why this exists
+
+Editing the deployed copy is how ~20 KB of `claude-code-gold` content — four
+sections, two references, and a probe script — came to exist on exactly one
+machine, unversioned. The same thing happened to `powerbi-workflow` (whose live
+copy was self-patched by the gateway agent mid-build) and to
+`windows-ai-agent-adaptation` (which had no repo at all). Every `SKILL.md` now
+opens with a banner saying not to edit the deployed copy; this script is what
+makes following that advice easy. See `docs/prd/03-open-threads.md` Thread 10.

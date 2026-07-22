@@ -151,8 +151,18 @@ A repo split would not have fixed that; it would have produced a second repo als
 sync with the deployment. The missing piece was a **sync direction**, not a repo boundary.
 
 - ✅ **Done:** deployed content reverse-synced into the repo (both skills).
-- ⬜ **Next:** declare the repo the source of truth and add a deploy script, so "edit the
-  deployment in place" stops being the path of least resistance. Until that exists, this
-  drift recurs.
-- ⬜ **Next:** reconcile the bidirectional `powerbi-workflow` drift (its `SKILL.md` differs
-  in both directions; the repo has a reference the deployment lacks).
+- ✅ **Done (2026-07-22):** the repo is now declared the source of truth, enforced by
+  `scripts/deploy-skills.ps1` in both repos. It is one-way (repo → deployment), never
+  deletes, compares by content hash, and `-Check` exits 1 on drift so it works as a
+  pre-commit or CI guard. Every `SKILL.md` opens with a banner telling agents not to edit
+  the deployed copy. See `docs/WINDOWS_DEPLOYMENT.md` §8.
+- ✅ **Done (2026-07-22):** `powerbi-workflow`'s bidirectional drift reconciled — the live
+  copy won as canonical (it had operational fixes and its reference links all resolved,
+  while the repo copy linked four files that existed nowhere).
+- ✅ **Done (2026-07-22):** `windows-ai-agent-adaptation`, previously deployment-only with
+  no repo at all, vendored into `skills/` here.
+
+**Residual risk:** the script makes the right thing easy, but nothing *prevents* an agent
+from writing to `%HERMES_HOME%\skills\` — Hermes self-patched `powerbi-workflow` mid-build
+once already. Run `deploy-skills.ps1 -Check` before trusting the repo copy; wiring it into a
+pre-commit hook would make that automatic.
