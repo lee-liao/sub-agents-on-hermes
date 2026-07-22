@@ -105,7 +105,8 @@ Discord IM ─▶ gateway ─▶ Hermes agent
 ```
 
 **Registry (requirement F11).** A manifest on the persistent volume
-(`/opt/data/home/.golden_session/registry.json`) maps a human-readable **name** →
+(`/opt/data/.golden_session/registry.json` — see the path note below) maps a
+human-readable **name** →
 `{golden_id, cwd, description, defaults, ceilings}`. It materializes doc 02's "one GOLD per
 workspace" policy and adds an alias plus per-session defaults/ceilings:
 
@@ -120,6 +121,17 @@ workspace" policy and adds an alias plus per-session defaults/ceilings:
   }
 }
 ```
+
+> **Path note (corrected 2026-07-21).** Earlier revisions of this doc placed the registry at
+> `/opt/data/home/.golden_session/registry.json`. That path was an artifact of the
+> `terminal.home_mode: auto` drift — `auto` forked the agent's subprocesses into a *fake*
+> home at `/opt/data/home`, which is also where the orphaned 234 MB `claude` install came
+> from. With the shipped `home_mode: real`, `$HOME=/opt/data` (per `/etc/passwd`), so the
+> registry is at **`/opt/data/.golden_session/registry.json`**. The engine never hard-codes
+> either path — it resolves `$HOME/.golden_session/registry.json`, overridable via
+> `GOLDEN_SESSION_REGISTRY`. See [`../HERMES_HOME_AND_OS_HOME.md`](../HERMES_HOME_AND_OS_HOME.md)
+> for the drift, and [`../WINDOWS_DEPLOYMENT.md`](../WINDOWS_DEPLOYMENT.md) for the native-Windows
+> case, where `$HOME` and `HERMES_HOME` are *different directories*.
 
 `golden_session run --name <name>` resolves identity **in code** — the agent never supplies
 `golden_id` or `cwd` (preserves F6/F7/A2).
@@ -163,18 +175,27 @@ by name only.**
 `docker-compose.yml` runs `nousresearch/hermes-agent:latest` with the bind mount
 `/opt/data → host /home/lee/.hermes` (persists across `docker rm` + recreate).
 
+> **Superseded 2026-07-21 — this section originally recorded the *drifted* paths.** The
+> investigation behind it ran under `terminal.home_mode: auto`, which forks the agent's
+> terminal subprocesses into a fake home at `/opt/data/home`. Everything it "verified" there
+> was the drift, not the real install: the `/opt/data/home/.npm-global/bin/claude` it names
+> is the **orphaned 234 MB copy**. The table below is corrected to the real paths;
+> [`../HERMES_HOME_AND_OS_HOME.md`](../HERMES_HOME_AND_OS_HOME.md) is the authority.
+
 | Path | Origin | Survives image update? |
 |---|---|---|
-| `/opt/data/home/.npm-global/bin/claude` (+ its `node_modules`) | **bind mount** | ✅ yes |
-| `/opt/data/home/.npmrc` (`prefix=$HOME/.npm-global`) | bind mount | ✅ yes |
-| `/opt/data/home/.bashrc` (PATH export) | bind mount | ✅ yes |
-| `/opt/data/home/.claude.json` + `/opt/data/home/.claude/` (auth + sessions) | bind mount | ✅ yes |
+| `/opt/data/.local/bin/claude` (+ its `node_modules`) | **bind mount** | ✅ yes |
+| `/opt/data/.npmrc` (`prefix=/opt/data/.local`) | bind mount | ✅ yes |
+| `/opt/data/.bashrc` (PATH export) | bind mount | ✅ yes |
+| `/opt/data/.claude.json` + `/opt/data/.claude/` (auth + sessions) | bind mount | ✅ yes |
 | `/usr/local/bin/node` (v22), `/usr/local/bin/npm` (v10) | **image layer** | ❌ replaced on update |
 
-**`$HOME` = `/opt/data/home`** — corroborated by two live investigations (npm prefix,
-`.bashrc`, and `.claude/` all resolve under it). `TROUBLESHOOTING.md` §Issue 1 (which states
-`$HOME = /opt/data`) predates this and is likely stale; confirm with
-`docker exec -u hermes hermes-lee bash -lc 'echo $HOME'` and correct whichever doc is wrong.
+**`$HOME` = `/opt/data`** — the `hermes` user's OS home per `/etc/passwd`
+(`hermes:x:1001:1001::/opt/data:/bin/sh`), and the same directory as `HERMES_HOME`. An
+earlier revision of this doc claimed `/opt/data/home` and dismissed `TROUBLESHOOTING.md`
+§Issue 1 as stale; **`TROUBLESHOOTING.md` was right.** The `/opt/data/home` reading was the
+`home_mode: auto` drift. Requires `terminal.home_mode: real` (Phase 0 of the runbook);
+verify with `docker exec -u hermes hermes-lee bash -lc 'echo $HOME'`.
 
 ### Decision D1 — install method: persistent volume (not a derived image)
 
@@ -221,13 +242,13 @@ login, so the method matters:
   browser, and the device code **expires while unattended** — exactly what blocked the live
   `/claude-code` run. Fine for a developer's manual session; wrong for the MVP.
 
-Once set, auth persists at `/opt/data/home/.claude.json` on the bind mount (survives image
+Once set, auth persists at `/opt/data/.claude.json` on the bind mount (survives image
 updates), so it is a one-time setup.
 
 ### Decision D4 — session persistence & workspace-path stability
 
 Because `$HOME` is on the bind mount, Claude Code sessions persist under
-`/opt/data/home/.claude/projects/<encoded-cwd>/` — so **GOLD and its forks survive container
+`/opt/data/.claude/projects/<encoded-cwd>/` — so **GOLD and its forks survive container
 restarts** (a bonus for the GOLD pattern). Consequence: each task's workspace **must be a
 stable path inside the container** (e.g. `/opt/data/projects/<project>`), because session
 lookup is **cwd-scoped** (doc 02; enforced by F6/F9). The current compose already mounts
@@ -236,7 +257,7 @@ lookup is **cwd-scoped** (doc 02; enforced by F6/F9). The current compose alread
 ### Wrapper placement
 
 Install `golden_session.py` / the `golden_session` CLI on the **bind mount** (e.g. under
-`/opt/data/home/.local/`), not in the image and not in `/tmp` (doc 02 notes the source
+`/opt/data/.local/`), not in the image and not in `/tmp` (doc 02 notes the source
 currently lives at volatile `/tmp/golden_session.py`). This keeps the engine persistent
 alongside `claude`.
 
@@ -250,7 +271,7 @@ hermes`** — running as root pollutes file ownership (see `TROUBLESHOOTING.md` 
 ```bash
 docker exec -u hermes hermes-lee bash -lc 'node --version && claude --version && echo $HOME'
 ```
-Expect Node present, `claude` v2.1.x, `$HOME=/opt/data/home`. If `claude` is missing, install
+Expect Node present, `claude` v2.1.x, `$HOME=/opt/data`. If `claude` is missing, install
 per §3 / Decision D1 (user-local npm prefix).
 
 **Step 1 — Auth (Decision D3).** Add the API key to `docker-compose.yml`, recreate, verify:
@@ -283,8 +304,8 @@ docker exec -u hermes hermes-lee bash -lc \
      --context-file /opt/data/projects/billing-api/CONTEXT.md'   # prints golden_id, writes registry.json
 docker exec -u hermes hermes-lee bash -lc 'golden_session list'  # confirm the alias appears
 ```
-Registry lands at `/opt/data/home/.golden_session/registry.json` (F11). **GOLD is sacred** —
-never prime the same name twice (F1/F7).
+Registry lands at `/opt/data/.golden_session/registry.json` (F11 — `$HOME` is `/opt/data`;
+see the path note in §2). **GOLD is sacred** — never prime the same name twice (F1/F7).
 
 **Step 4 — Wire the trigger.**
 - *Skill/guide (A1, Option B):* place a thin GOLD-aware skill in Hermes' skills directory so
@@ -304,7 +325,7 @@ future Node bump self-heals. Remember: env changes need a **recreate** (`docker 
 not a restart.
 
 **Persistence recap.** `claude`, the wrapper, `registry.json`, GOLD transcripts
-(`/opt/data/home/.claude/projects/…`), and auth (`/opt/data/home/.claude.json`) all live on the
+(`/opt/data/.claude/projects/…`), and auth (`/opt/data/.claude.json`) all live on the
 bind mount → they survive recreate and image updates. Only Node comes from the image (the D2
 risk).
 

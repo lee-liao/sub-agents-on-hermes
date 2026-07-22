@@ -19,8 +19,11 @@ from typing import Any, Optional
 
 from .errors import RegistryError
 
-# Doc 05: registry lands at /opt/data/home/.golden_session/registry.json. Default
-# to $HOME/.golden_session/registry.json; override via env for tests / non-default HOME.
+# Always $HOME/.golden_session/registry.json; override via env for tests. $HOME is
+# the OS home, NOT HERMES_HOME — the two are the same dir in the container
+# (/opt/data, so the file lands at /opt/data/.golden_session/registry.json) but
+# diverge on Windows, where it lands under the user profile rather than
+# %HERMES_HOME%. See docs/WINDOWS_DEPLOYMENT.md §1.
 DEFAULT_REGISTRY_PATH = os.path.join(
     os.path.expanduser("~"), ".golden_session", "registry.json"
 )

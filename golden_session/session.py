@@ -31,7 +31,8 @@ from .result import TaskResult
 from .runner import ClaudeRunner, RunOutput, default_runner
 
 # Default location Claude Code stores transcripts; overridable for tests / non
-# default $HOME (doc 05: container $HOME is /opt/data/home).
+# default $HOME. $HOME is the OS home, not HERMES_HOME: /opt/data in the container,
+# the user profile on Windows (docs/WINDOWS_DEPLOYMENT.md §1).
 DEFAULT_PROJECTS_DIR = os.path.join(os.path.expanduser("~"), ".claude", "projects")
 
 

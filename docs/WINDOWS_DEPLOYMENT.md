@@ -201,8 +201,10 @@ which `golden_session` is first on PATH, in that order.
 | `terminal.home_mode` | must be `real` | `real` (config.yaml:50) |
 | Sessions | `billing-api` | `ado-ready`, `fresh-power-bi` |
 
-Doc 05's `/opt/data/home/.golden_session/registry.json` is **stale** even for the
-container — it predates the `home_mode` fix. Neither deployment uses it.
+If you find `/opt/data/home/...` anywhere, it is the `home_mode: auto` drift, not a real
+path — no deployment uses it. Doc 05 carried that error throughout its topology and runbook
+sections and was corrected on 2026-07-21; the remaining mentions there are deliberate
+historical context, labelled as such.
 
 ## 7. Open items
 
@@ -213,6 +215,8 @@ container — it predates the `home_mode` fix. Neither deployment uses it.
       across forks (F2) and decide whether it needs a leaner re-prime.
 - [ ] **Decide whether editable-install-as-production is intended** (§2). It is
       convenient for iteration and dangerous for uncommitted work.
-- [ ] Fix the stale `/opt/data/home/...` registry path in
+- [x] ~~Fix the stale `/opt/data/home/...` registry path in
       [`prd/05-integration-and-deployment.md`](./prd/05-integration-and-deployment.md)
-      (lines 108, 286) and `registry.py:22`.
+      and `registry.py:22`.~~ **Done 2026-07-21** — both corrected to
+      `/opt/data/.golden_session/registry.json`, with a path note in doc 05 §2
+      explaining that the old path was an artifact of the `home_mode: auto` drift.

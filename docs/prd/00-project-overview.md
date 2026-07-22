@@ -242,7 +242,7 @@ flowchart TB
         HERMES["Hermes gateway<br/>command: gateway run"]
         SHIM["/opt/data/.local/bin/golden_session<br/>PATH shim, re-exports ANTHROPIC_BASE_URL"]
         LIB["/opt/data/.local/lib/golden_session/"]
-        CLAUDEB["/opt/data/home/.npm-global/bin/claude"]
+        CLAUDEB["/opt/data/.local/bin/claude"]
         NODE["/usr/local/bin/node ⚠ image layer"]
     end
     HH -->|bind mount| CONT["/opt/data"]
