@@ -1,8 +1,15 @@
 # Windows MCP GOLD priming recipe
 
 Session: 2026-07-13. Context: Hermes Agent on Windows, native `claude` npm CLI
-v2.1.207, native Python 3.13, `golden_session` engine copied from
-`D:/MyCode/Ivan/sub-agents-on-hermes` into `C:/Users/liao_/AppData/Local/hermes/.local/lib/golden_session`.
+v2.1.207, native Python 3.13.
+
+> **Updated 2026-07-22 — do not copy the engine.** This recipe originally
+> described copying the package into
+> `%HERMES_HOME%\.local\lib\golden_session`. That second copy silently went
+> stale (it lacked `--case-id` for months). `golden_session` is now a pip
+> **editable** install pointing at the repo, so `python -m golden_session` and
+> the `golden_session` console script both resolve to the one current source
+> with **no `PYTHONPATH` needed**. See `docs/WINDOWS_DEPLOYMENT.md` §2.
 
 ## Problem
 
@@ -58,9 +65,11 @@ On Windows, the engine may also need these small adjustments:
   `claude` binary. Export `CLAUDE_BIN=D:\Users\liao_\AppData\Roaming\npm\claude.cmd`
   or extend the subprocess `PATH` to include the npm prefix directory.
 
-- `PYTHONPATH`: the native Python process used to launch `python -m golden_session`
-  must include the engine's lib directory, e.g.
-  `C:\Users\liao_\AppData\Local\hermes\.local\lib`.
+- `PYTHONPATH`: **no longer required.** The engine is a pip editable install, so
+  `python -m golden_session` resolves it from site-packages. Verify with
+  `python -c "import golden_session; print(golden_session.__file__)"` — it should
+  print the repo path. Only set `PYTHONPATH` if you are deliberately running a
+  Python that lacks the install.
 
 - `encode_cwd()` in `session.py` should fold underscores to dashes to match the
   Windows Claude project directory naming convention.

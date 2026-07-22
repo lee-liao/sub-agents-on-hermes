@@ -193,13 +193,30 @@ and it hasn't.
 
 Two things to keep an eye on:
 
-> ⚠️ **The GOLDs are large** (493 KB / 746 KB). PRD §5 warns to keep GOLD lean —
-> every fork pays a prompt-cache write proportional to its size (~$0.05 floor,
-> more for big GOLDs). With 32 forks on `fresh-power-bi` that is real money. Both
-> were primed interactively (see the priming method in `claude-code-gold`'s
-> SKILL.md), which accumulates more context than a lean scripted prime. Consider a
-> leaner re-prime under a **new** name if per-fork cost becomes a concern — never
-> re-prime an existing name (F1/F7).
+#### Is GOLD too big? Measured, not guessed — **no**
+
+Transcript **file size is a poor proxy** for context cost; the `.jsonl` carries
+attachments and metadata that never enter the prompt. Reading the `usage` blocks
+out of the fork transcripts gives the real numbers:
+
+| | `ado-ready` | `fresh-power-bi` |
+|---|---|---|
+| **GOLD's primed context** (tokens at fork start) | ~53 k | ~42 k |
+| Cache **creation** per fork, median | 518 k | 884 k |
+| Total cache creation, all forks | 2.6 M | 24.4 M |
+
+GOLD contributes roughly **5%** of a typical fork's billed cache writes. The
+dominant cost is the *task* — long multi-turn runs re-writing cache as their
+context grows, not the primed template.
+
+**So a leaner re-prime is not worth it.** Halving GOLD would cut ~2% off a run
+while destroying a working, primed session. If per-fork cost matters, the lever
+is task-level: fewer turns (`--turns`), tighter `max_turns` ceilings, and task
+templates that don't accumulate context. PRD §5's "keep GOLD lean" is still sound
+advice at prime time; it just isn't the binding constraint here.
+
+To re-measure after future runs, read `cache_creation_input_tokens` /
+`cache_read_input_tokens` from the `message.usage` blocks in each fork's `.jsonl`.
 
 > ⚠️ **`ado-ready` has an orphaned twin GOLD.** Two transcripts exist whose ids
 > differ only in the final character:
@@ -268,15 +285,24 @@ historical context, labelled as such.
       same file.
 - [x] ~~**Audit the GOLD transcripts** (F2).~~ **Done 2026-07-21** — F2 holds on
       both sessions; see the GOLD audit in §4. Surfaced two follow-ups below.
-- [ ] **Delete the orphaned twin GOLD** `…3b4c` in `ado-ready` (§4), after
-      confirming nothing references it.
-- [ ] **Consider a leaner re-prime** if per-fork prompt-cache cost matters (§4) —
-      under a *new* name; never re-prime an existing one.
-- [ ] **Stop the skill docs pointing at a second engine copy** (§2) —
-      `claude-code-gold/references/windows-mcp-prime.md` and
-      `software-development/windows-ai-agent-adaptation/*` instruct setting
-      `PYTHONPATH` to `%HERMES_HOME%\.local\lib`. Until they reference the
-      installed package instead, the duplicate copy has to be kept in sync.
+- [x] ~~**Delete the orphaned twin GOLD** `…3b4c` in `ado-ready`.~~ **Done
+      2026-07-22** — verified unreferenced (no fork descends from it, nothing in
+      the registry, skills, or either repo cites it), then retired to
+      `…3b4c.jsonl.bak-20260722` rather than hard-deleted, following the
+      `.claude.bak-*` precedent. The engine no longer sees it (`list_forks`
+      matches `*.jsonl` only). Delete the `.bak` after a few clean runs.
+- [x] ~~**Consider a leaner re-prime.**~~ **Measured 2026-07-22: not worth it** —
+      GOLD is ~5% of a fork's billed cache writes; see §4.
+- [x] ~~**Stop the skill docs pointing at a second engine copy.**~~ **Done
+      2026-07-22** — `windows-mcp-prime.md` now states the engine is a pip
+      editable install needing no `PYTHONPATH`, and the two
+      `windows-ai-agent-adaptation` references carry the same correction.
+- [ ] **`software-development/windows-ai-agent-adaptation` has no repo home.**
+      It exists only in the deployment, so the corrections above are unversioned
+      and will drift — the same failure this doc was written about. Either vendor
+      it into a repo or accept it as deployment-only, deliberately.
+- [ ] **Restart Hermes** so it observes `GOLDEN_SESSION_REGISTRY` (set
+      2026-07-21). No urgency: the default resolves to the same file.
 - [x] ~~**Decide whether editable-install-as-production is intended** (§2).~~
       **Decided 2026-07-21: intended, keep it.** Fast iteration and one source of
       truth, at the cost of a live working tree — documented in §2.
