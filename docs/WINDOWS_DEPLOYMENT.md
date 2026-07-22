@@ -84,18 +84,32 @@ So a call routed through the `.bat` shim would fail with an argparse error on
 
 **Two consequences of the editable install worth internalising:**
 
-1. **Uncommitted edits in the repo are live.** Editing
-   `D:\MyCode\Ivan\sub-agents-on-hermes\golden_session\*.py` changes the behaviour
-   of the next Hermes-triggered run immediately. There is no deploy step, and no
-   staging between "I'm experimenting" and "production."
+1. **Uncommitted edits in the repo are live — and this is intended** (decided
+   2026-07-21). Editing `D:\MyCode\Ivan\sub-agents-on-hermes\golden_session\*.py`
+   changes the behaviour of the next Hermes-triggered run immediately. There is no
+   deploy step and no staging between "I'm experimenting" and "production." The
+   trade is deliberate: fast iteration, and the repo stays the single source of
+   truth rather than one copy among several. **Treat the working tree as live** —
+   don't leave the engine mid-edit, and prefer a branch for anything exploratory.
 2. **The engine's own repo is not a GOLD workspace.** Don't confuse it with the
    workspaces in §4.
 
-**Recommended cleanup:** delete `%HERMES_HOME%\.local\lib\golden_session\` and
-`%HERMES_HOME%\.local\bin\golden_session.bat`, or re-sync them from the repo. Two
-divergent copies of a guardrail engine is exactly the failure mode this project
-exists to prevent (DRY, and "invariants in code" only holds if there's one copy of
-the code).
+**Resolved 2026-07-21 by re-syncing, not deleting.** Deletion was the first
+instinct and it was wrong: the `.local\lib` copy is referenced by
+`claude-code-gold/references/windows-mcp-prime.md` and by the whole
+`software-development/windows-ai-agent-adaptation` skill, which instructs setting
+`PYTHONPATH` to it. Removing it would have broken documented procedures. The copy
+is now byte-identical to the repo, so both entry points run current code.
+
+Note also that this interpreter's **editable install wins over `PYTHONPATH`** — a
+modern editable install registers a meta-path finder that runs before path-based
+lookup, so even `PYTHONPATH=%HERMES_HOME%\.local\lib python -m golden_session`
+resolves to the repo. The lib copy only matters for a *different* Python without
+the editable install; keeping it in sync covers that case.
+
+Two copies of a guardrail engine still violates DRY, and "invariants in code" only
+holds if there is one copy of the code. The durable fix is to update those skill
+references to stop pointing at a second copy — tracked as an open item in §7.
 
 ## 3. Windows-specific engine behaviour
 
@@ -162,9 +176,46 @@ runs\255-mock-test                ← --case-id 255-mock-test
 runs\255-preflight-check
 ```
 
-> ⚠️ **`ado-ready`'s GOLD transcript is 504 KB.** PRD §5 warns to keep GOLD lean —
+### GOLD audit (2026-07-21)
+
+**F2 holds on both sessions.** Each GOLD's line count is stable and its mtime
+predates every subsequent fork — no fork has grown its parent:
+
+| Session | GOLD | Forks | Transcript disk |
+|---|---|---|---|
+| `ado-ready` | 258 lines / 493 KB, last written 07-13 18:35 | 9 | 2.9 MB |
+| `fresh-power-bi` | 374 lines / 746 KB, last written 07-13 19:49 | 32 | 21.8 MB |
+
+Forks consistently have *fewer* lines than their GOLD (max 247 vs 258; 362 vs
+374), which is expected — a fork copies the conversation, not every transcript
+metadata line. The property F2 actually requires is that **GOLD does not grow**,
+and it hasn't.
+
+Two things to keep an eye on:
+
+> ⚠️ **The GOLDs are large** (493 KB / 746 KB). PRD §5 warns to keep GOLD lean —
 > every fork pays a prompt-cache write proportional to its size (~$0.05 floor,
-> more for big GOLDs). Not yet investigated; see §7.
+> more for big GOLDs). With 32 forks on `fresh-power-bi` that is real money. Both
+> were primed interactively (see the priming method in `claude-code-gold`'s
+> SKILL.md), which accumulates more context than a lean scripted prime. Consider a
+> leaner re-prime under a **new** name if per-fork cost becomes a concern — never
+> re-prime an existing name (F1/F7).
+
+> ⚠️ **`ado-ready` has an orphaned twin GOLD.** Two transcripts exist whose ids
+> differ only in the final character:
+>
+> ```
+> d2f4b6e8-1a3c-4e5f-8b7d-9c0e1f2a3b4c   476 KB, 247 lines — ORPHAN, unreferenced
+> d2f4b6e8-1a3c-4e5f-8b7d-9c0e1f2a3b4d   493 KB, 258 lines — the registered GOLD
+> ```
+>
+> These ids are hand-authored (the Windows "interactive fixed-ID prime" method
+> lets you pick the UUID), and the registry was then hand-edited to point at one
+> of them. **That path bypasses the engine's guards**: `DoublePrimeError` only
+> fires for the *same* id, and `Registry.add`'s duplicate-name refusal never runs
+> when the JSON is edited by hand. Nothing detects a one-character twin. Safe to
+> delete `…3b4c` after confirming nothing references it — but prefer generated
+> UUIDs over hand-authored ones to avoid recreating this.
 
 ## 5. Verifying the deployment
 
@@ -208,13 +259,27 @@ historical context, labelled as such.
 
 ## 7. Open items
 
-- [ ] **Resolve the duplicate engine copy** (§2) — delete or re-sync
-      `%HERMES_HOME%\.local\{bin,lib}`. Highest-value cleanup here.
-- [ ] **Pin `GOLDEN_SESSION_REGISTRY`** so the path is chosen, not defaulted.
-- [ ] **Audit `ado-ready`'s 504 KB GOLD** — confirm it is still line-count-flat
-      across forks (F2) and decide whether it needs a leaner re-prime.
-- [ ] **Decide whether editable-install-as-production is intended** (§2). It is
-      convenient for iteration and dangerous for uncommitted work.
+- [x] ~~**Resolve the duplicate engine copy** (§2).~~ **Done 2026-07-21** —
+      re-synced rather than deleted, because skill references point at it (§2).
+- [x] ~~**Pin `GOLDEN_SESSION_REGISTRY`**.~~ **Done 2026-07-21** — set for the
+      user account to `C:\Users\liao_\.golden_session\registry.json` (the same
+      file the default already resolved to, so no cutover). **Hermes must be
+      restarted** to pick it up; until then the default applies and points at the
+      same file.
+- [x] ~~**Audit the GOLD transcripts** (F2).~~ **Done 2026-07-21** — F2 holds on
+      both sessions; see the GOLD audit in §4. Surfaced two follow-ups below.
+- [ ] **Delete the orphaned twin GOLD** `…3b4c` in `ado-ready` (§4), after
+      confirming nothing references it.
+- [ ] **Consider a leaner re-prime** if per-fork prompt-cache cost matters (§4) —
+      under a *new* name; never re-prime an existing one.
+- [ ] **Stop the skill docs pointing at a second engine copy** (§2) —
+      `claude-code-gold/references/windows-mcp-prime.md` and
+      `software-development/windows-ai-agent-adaptation/*` instruct setting
+      `PYTHONPATH` to `%HERMES_HOME%\.local\lib`. Until they reference the
+      installed package instead, the duplicate copy has to be kept in sync.
+- [x] ~~**Decide whether editable-install-as-production is intended** (§2).~~
+      **Decided 2026-07-21: intended, keep it.** Fast iteration and one source of
+      truth, at the cost of a live working tree — documented in §2.
 - [x] ~~Fix the stale `/opt/data/home/...` registry path in
       [`prd/05-integration-and-deployment.md`](./prd/05-integration-and-deployment.md)
       and `registry.py:22`.~~ **Done 2026-07-21** — both corrected to
