@@ -1,0 +1,60 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.0.6 Chrome/138.0.7204.100 Electron/37.2.3 Safari/537.36" version="28.0.6">
+  <diagram name="Page-1" id="qtyE75FF6w4dvoBCLPJa">
+    <mxGraphModel dx="2066" dy="841" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-1" value="Same workspace&#xa;(same cwd)?" style="rhombus;strokeWidth=2;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="338.5" y="28" width="196" height="196" as="geometry" />
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-2" value="Separate GOLDs.&#xa;Prime one per workspace (R1)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="34" y="92" width="260" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-3" value="Same primed context&#xa;needed?" style="rhombus;strokeWidth=2;whiteSpace=wrap;" vertex="1" parent="1">
+          <mxGeometry x="328" y="289" width="217" height="208" as="geometry" />
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-4" value="Split the workspace first,&#xa;then one GOLD each (R1)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="597" y="354" width="241" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-5" value="SHARE the GOLD (R1)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="330" y="600" width="213" height="54" as="geometry" />
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-6" value="Vary the task_template, not the session (R3)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="15" y="748" width="260" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-7" value="Namespace the --case-id per consumer (R5)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="306.5" y="752" width="260" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-8" value="Ceiling = most cost-sensitive consumer;&#xa;others clamp down per call (R6)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="595" y="747" width="249" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-9" value="no" style="startArrow=none;endArrow=block;exitX=0;exitY=0.5;rounded=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="2jEqFmx4LR_2lrAmtIVI-1" target="2jEqFmx4LR_2lrAmtIVI-2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-10" value="yes" style="startArrow=none;endArrow=block;exitX=0.5;exitY=1;rounded=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="2jEqFmx4LR_2lrAmtIVI-1" target="2jEqFmx4LR_2lrAmtIVI-3">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="436.5" y="290" as="targetPoint" />
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-11" value="no" style="startArrow=none;endArrow=block;exitX=1;exitY=0.5;rounded=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="2jEqFmx4LR_2lrAmtIVI-3" target="2jEqFmx4LR_2lrAmtIVI-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-12" value="yes" style="startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="2jEqFmx4LR_2lrAmtIVI-3" target="2jEqFmx4LR_2lrAmtIVI-5">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="436.5" y="521" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-13" value="" style="startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="2jEqFmx4LR_2lrAmtIVI-5" target="2jEqFmx4LR_2lrAmtIVI-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-14" value="" style="startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="2jEqFmx4LR_2lrAmtIVI-5" target="2jEqFmx4LR_2lrAmtIVI-7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="2jEqFmx4LR_2lrAmtIVI-15" value="" style="startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="2jEqFmx4LR_2lrAmtIVI-5" target="2jEqFmx4LR_2lrAmtIVI-8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

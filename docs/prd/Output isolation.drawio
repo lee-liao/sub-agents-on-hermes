@@ -1,0 +1,79 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.0.6 Chrome/138.0.7204.100 Electron/37.2.3 Safari/537.36" version="28.0.6">
+  <diagram name="Page-1" id="F3lgVK7E-81DjkUgqnOB">
+    <mxGraphModel dx="1540" dy="825" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="-FZLIup95g6uwMDG5HrB-1" value="--case-id case-238&#xa;(or --work-item-id / --pipeline-id / --run-dir)" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="457" y="207" width="198" height="81" as="geometry" />
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-2" value="sanitize_case_id&#xa;[A-Za-z0-9._-] kept" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="457" y="319" width="197" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-3" value="&lt;workspace&gt;/runs/case-238" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="456" y="428" width="196" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-4" value="no id passed" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="190.5" y="319" width="172.5" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-5" value="&lt;workspace&gt;/runs/&lt;ts&gt;-&lt;uid&gt;" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="189" y="428" width="171" height="78" as="geometry" />
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-6" value="mkdir + export GS_RUN_DIR" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="315" y="579" width="187" height="72" as="geometry" />
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-7" value="claude subprocess env" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="314" y="684" width="188" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-8" value="PreToolUse hook&#xa;confine_writes.py" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="314" y="789" width="189" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-9" value="✅ Write/Edit allowed" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="174" y="987" width="187" height="81" as="geometry" />
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-10" value="❌ blocked before it happens" style="whiteSpace=wrap;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="459" y="982" width="184" height="82" as="geometry" />
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-11" value="" style="curved=1;startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="-FZLIup95g6uwMDG5HrB-1" target="-FZLIup95g6uwMDG5HrB-2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-12" value="" style="curved=1;startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="-FZLIup95g6uwMDG5HrB-2" target="-FZLIup95g6uwMDG5HrB-3">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-13" value="" style="curved=1;startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="-FZLIup95g6uwMDG5HrB-4" target="-FZLIup95g6uwMDG5HrB-5">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-14" value="" style="startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="-FZLIup95g6uwMDG5HrB-3" target="-FZLIup95g6uwMDG5HrB-6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-15" value="" style="startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="-FZLIup95g6uwMDG5HrB-5" target="-FZLIup95g6uwMDG5HrB-6">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="229" y="511.00281098546037" as="sourcePoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-16" value="" style="curved=1;startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="-FZLIup95g6uwMDG5HrB-6" target="-FZLIup95g6uwMDG5HrB-7">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-17" value="" style="curved=1;startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="-FZLIup95g6uwMDG5HrB-7" target="-FZLIup95g6uwMDG5HrB-8">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-18" value="path inside GS_RUN_DIR" style="startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="-FZLIup95g6uwMDG5HrB-8" target="-FZLIup95g6uwMDG5HrB-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-FZLIup95g6uwMDG5HrB-19" value="path outside" style="startArrow=none;endArrow=block;rounded=0;" edge="1" parent="1" source="-FZLIup95g6uwMDG5HrB-8" target="-FZLIup95g6uwMDG5HrB-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
