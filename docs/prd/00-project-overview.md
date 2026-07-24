@@ -53,7 +53,8 @@ The system has two layers with a strict division of labor:
 
 This is Decision A2 (doc 05): invariants belong in code, not in a prompt. An LLM improvising
 `terminal("claude -p …")` calls will eventually resume onto GOLD, drop the explicit `cwd`,
-or skip a budget cap — each of which fails silently and looks like success.
+or skip a budget cap — each of which fails silently and looks like success.  
+Here is an use case: "a Discord user asks to run a task against the GOLD session registered under the name billing-api." 
 
 ```mermaid
 flowchart TB
@@ -376,13 +377,16 @@ flowchart TD
     SHARE --> V3["Ceiling = most cost-sensitive consumer;<br/>others clamp down per call (R6)"]
 ```
 
-### Known drift to fix
+### Resolved drift
 
-The orchestrator's design docs reference `--name analysis`, `--name implementation`, and
-`--name qa` — three sessions. Its **manifest**, which is what actually executes, uses
-`session: fresh-power-bi` for all four golden-session capabilities. The manifest is correct
-per R1/R2; the design-doc names are stale and, if followed, would prime three redundant
-GOLDs against one workspace. Fix the docs, not the manifest.
+An early orchestrator draft modelled the workflow as three phase-named sessions —
+`--name analysis`, `--name implementation`, `--name qa` — which, if followed, would prime
+three redundant GOLDs against one workspace. Its **manifest**, which is what actually
+executes, has always used `session: fresh-power-bi` for all four golden-session
+capabilities, and is correct per R1/R2. *Resolved:* the live design doc
+(`powerbi-workflow-orchestrator-design.md`) now states the one-GOLD rule explicitly, and the
+phase-named draft is retired to `docs/obsoletes/` behind a deprecation banner. The lesson
+stands: when docs and executable config disagree, fix the docs, not the manifest.
 
 ## 11. Status and what is next
 
